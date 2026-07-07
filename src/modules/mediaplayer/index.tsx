@@ -1,12 +1,13 @@
 import { MODULES } from '@/studio/ModuleRegistry'
 import type { StudioModule } from '@/studio/types'
 import { MediaPlayerModule } from './MediaPlayerModule'
+import { MediaPlayerIcon } from '@/studio/icons'
 
 const mediaplayer: StudioModule = {
   id: 'mediaplayer',
   slot: 'bottom',
   label: 'Media Player',
-  icon: '🎬',
+  icon: <MediaPlayerIcon />,
   defaultVisible: false,
   supportsPopout: true,
   popoutSize: { width: 600, height: 400 },

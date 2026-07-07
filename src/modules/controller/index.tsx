@@ -1,12 +1,13 @@
 import { MODULES } from '@/studio/ModuleRegistry'
 import type { StudioModule } from '@/studio/types'
 import { ControllerModule } from './ControllerModule'
+import { ControllerIcon } from '@/studio/icons'
 
 const controller: StudioModule = {
   id: 'controller',
   slot: 'bottom',
   label: 'Controller',
-  icon: '🎛️',
+  icon: <ControllerIcon />,
   defaultVisible: true,
   supportsPopout: true,
   popoutSize: { width: 800, height: 392 },

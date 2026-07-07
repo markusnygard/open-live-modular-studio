@@ -1,12 +1,13 @@
 import { MODULES } from '@/studio/ModuleRegistry'
 import type { StudioModule } from '@/studio/types'
 import { PipModule } from './PipModule'
+import { PipIcon } from '@/studio/icons'
 
 const pip: StudioModule = {
   id: 'pip',
   slot: 'bottom',
-  label: 'PiP',
-  icon: '🖼️',
+  label: 'PiP Editor',
+  icon: <PipIcon />,
   defaultVisible: false,
   supportsPopout: true,
   popoutSize: { width: 600, height: 400 },
