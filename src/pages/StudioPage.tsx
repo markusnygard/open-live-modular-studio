@@ -22,6 +22,7 @@ import { useSourcesStore } from '@/store/sources.store'
 import { useOutputsStore } from '@/store/outputs.store'
 import { useViewerStore } from '@/store/viewer.store'
 import { loadMediaPlayerState, saveMediaPlayerState } from '@/modules/mediaplayer/mediaplayer.persistence'
+import { loadPipState, savePipState } from '@/modules/pip/pip.persistence'
 import type { OutputType } from '@/lib/api'
 
 // Ensure every module registers itself in the shared registry regardless of
@@ -82,6 +83,7 @@ function StudioPageInner({ productionId }: { productionId: string }) {
   // Load persisted module state when production is activated
   useEffect(() => {
     void loadMediaPlayerState(productionId)
+    void loadPipState(productionId)
   }, [productionId])
 
   const numPips = activeProduction?.values?.num_pips !== undefined
@@ -299,7 +301,17 @@ function StudioPageInner({ productionId }: { productionId: string }) {
                 <ModuleHeader icon={getModuleById('pip')?.icon ?? <></>} label="PiP Editor"
                   tooltip="Picture-in-Picture editor. Select a PiP slot, then drag zones on the canvas to position them. Assign sources to zones by clicking the source chips. Use Crop / Zoom to pan and zoom individual sources within a zone. Set a border colour and width per zone. Click Take to bring the PiP to programme."
                   onHide={() => setModuleVisible('pip', false)}
-                  onPopOut={() => window.open(`/pane/pip?production=${productionId}`, '_blank', 'noopener')} />
+                  onPopOut={() => window.open(`/pane/pip?production=${productionId}`, '_blank', 'noopener')}>
+                  <button title="Save PiP setup"
+                    onClick={() => savePipState(productionId)}
+                    className="cursor-pointer hover:text-green-400 transition-colors">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
+                      <polyline points="17 21 17 13 7 13 7 21" />
+                      <polyline points="7 3 7 8 15 8" />
+                    </svg>
+                  </button>
+                </ModuleHeader>
                 <div className="flex-1 min-h-0 overflow-hidden">
                   <ModuleRenderer moduleId="pip" send={send} productionId={productionId} />
                 </div>
