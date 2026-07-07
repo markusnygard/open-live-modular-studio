@@ -6,7 +6,6 @@ import { useControllerStore, type SourceAssignment, type GraphicAssignment, type
 import { useControllerMessages } from './controller.messages'
 import { SourceBus } from './SourceBus'
 import { TransitionPanel } from './TransitionPanel'
-import { DskPanel } from './DskPanel'
 import { MacroBar } from './MacroBar'
 import { ControllerOptionsModal } from './ControllerOptionsModal'
 
@@ -205,13 +204,12 @@ export function ControllerModule({ send, productionId }: { send: SendFn; product
         </button>
       </div>
 
-      {/* Panels — horizontal: SourceBus | TransitionPanel | DskPanel | MacroBar */}
+      {/* Panels — horizontal: SourceBus | TransitionPanel | MacroBar */}
       <div className="flex flex-1 min-h-0 gap-1 overflow-x-auto">
         <div className="flex-1 min-w-0">
           <SourceBus onSelectPvw={doSelectPvw} onHotCut={doHotCut} />
         </div>
         <TransitionPanel onCut={doCut} onAuto={doAuto} onFtb={doFtb} onSetOvl={doSetOvl} className="shrink-0" />
-        <DskPanel onToggle={doDskToggle} />
         <MacroBar onExec={doMacroExec} />
       </div>
 
