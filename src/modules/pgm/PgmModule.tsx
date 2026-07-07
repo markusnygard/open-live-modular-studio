@@ -1,26 +1,68 @@
-import { useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { SendFn } from '@/studio/types'
-import { eventBus } from '@/shared/event-bus'
-import { usePgmStore } from './pgm.store'
 
 export function PgmModule({ productionId }: { send: SendFn; productionId: string | null }) {
-  const connected = usePgmStore(s => s.connected)
-  const setConnected = usePgmStore(s => s.setConnected)
+  const [pgmEndpoint, setPgmEndpoint] = useState<string | null>(null)
+  const [connectionState, setConnectionState] = useState<'disconnected' | 'connecting' | 'connected'>('disconnected')
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const clientRef = useRef<{ close: () => void } | null>(null)
 
   useEffect(() => {
-    const offActivated = eventBus.on('PRODUCTION_ACTIVATED', () => setConnected(true))
-    const offDeactivated = eventBus.on('PRODUCTION_DEACTIVATED', () => setConnected(false))
-    return () => {
-      offActivated()
-      offDeactivated()
+    if (!productionId) {
+      setPgmEndpoint(null)
+      return
     }
-  }, [setConnected])
+    import('@/shared/api').then(({ request }) => {
+      request<{ pgmWhepEndpoint?: string }>(`/api/v1/productions/${productionId}`)
+        .then(d => setPgmEndpoint(d.pgmWhepEndpoint || null))
+        .catch(() => setPgmEndpoint(null))
+    })
+  }, [productionId])
+
+  useEffect(() => {
+    if (!pgmEndpoint || !videoRef.current) return
+
+    setConnectionState('connecting')
+    let cancelled = false
+
+    import('@/lib/webrtc').then(async ({ WhepClient }) => {
+      const client = new WhepClient(
+        pgmEndpoint,
+        {
+          onConnected: () => { if (!cancelled) setConnectionState('connected') },
+          onError: () => { if (!cancelled) setConnectionState('disconnected') },
+          onVideoTrack: (stream) => {
+            if (!cancelled && videoRef.current) {
+              videoRef.current.srcObject = stream
+            }
+          },
+        },
+        {
+          iceServersUrl: '/api/v1/ice-servers',
+        },
+      )
+      clientRef.current = client
+      await client.connect()
+    }).catch(() => {
+      if (!cancelled) setConnectionState('disconnected')
+    })
+
+    return () => {
+      cancelled = true
+      clientRef.current?.close()
+      clientRef.current = null
+    }
+  }, [pgmEndpoint])
 
   return (
-    <div className="bg-zinc-900 rounded border border-zinc-700 p-2">
-      <span className="text-zinc-400 text-xs">
-        PGM {productionId && connected ? '●' : '○'}
-      </span>
+    <div className="bg-black rounded w-full h-full flex items-center justify-center relative border border-zinc-800">
+      {connectionState === 'connected' ? (
+        <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-contain" />
+      ) : connectionState === 'connecting' ? (
+        <span className="text-zinc-500 text-xs">connecting...</span>
+      ) : (
+        <span className="text-zinc-700 text-xs">PGM offline</span>
+      )}
     </div>
   )
 }

@@ -1,0 +1,291 @@
+import { useEffect, useRef, useState, useImperativeHandle, forwardRef } from 'react'
+
+const MAX_RETRIES = 5
+import { WhepClient } from '@/lib/webrtc'
+import { getApiToken } from '@/lib/sat'
+import { Badge } from '@/components/ui/Badge'
+import type { ViewerConnectionState } from '@/store/viewer.store'
+import { BASE as API_BASE } from '@/lib/base'
+
+interface PgmChannel { label: string; url: string }
+
+interface PgmPreviewProps {
+  channels: PgmChannel[]
+  selectedUrl?: string
+  onSelectUrl?: (url: string) => void
+  audioOn: boolean
+  onAudioOnChange: (v: boolean) => void
+  audioTrack: number
+  onAudioTrackChange: (i: number) => void
+  onAudioTrackCount?: (n: number) => void
+}
+
+export interface PgmPreviewHandle {
+  setVideoMuted: (muted: boolean) => void
+}
+
+/**
+ * Self-contained PGM program monitor. Establishes its own WHEP connection
+ * independently of the multiviewer — does NOT use the shared viewer store,
+ * so the two streams can coexist in the same page without conflicting.
+ */
+export const PgmPreview = forwardRef<PgmPreviewHandle, PgmPreviewProps>(function PgmPreview({ channels, selectedUrl, onSelectUrl: _onSelectUrl, audioOn, onAudioOnChange: _onAudioOnChange, audioTrack, onAudioTrackChange: _onAudioTrackChange, onAudioTrackCount }: PgmPreviewProps, ref) {
+  const videoRef = useRef<HTMLVideoElement>(null)
+
+  useImperativeHandle(ref, () => ({
+    setVideoMuted: (m: boolean) => { if (videoRef.current) videoRef.current.muted = m },
+  }))
+  const [connectionState, setConnectionState] = useState<ViewerConnectionState>('disconnected')
+  const [retryCountdown, setRetryCountdown] = useState<number | null>(null)
+  const [retryAttempt, setRetryAttempt] = useState(0)
+  const [hasVideo, setHasVideo] = useState(false)
+  const clientRef = useRef<WhepClient | null>(null)
+
+  const whepEndpoint = selectedUrl ?? channels[0]?.url
+
+  const audioCtxRef = useRef<AudioContext | null>(null)
+  const audioSrcRef = useRef<MediaStreamAudioSourceNode | null>(null)
+  const streamRef = useRef<MediaStream | null>(null)
+  const [audioTrackCount, setAudioTrackCount] = useState(0)
+
+  useEffect(() => {
+    onAudioTrackCount?.(audioTrackCount)
+  }, [audioTrackCount]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // AudioContext only used for multi-track selection. Single-track audio is
+  // handled by leaving the video element unmuted (avoids double playback).
+  useEffect(() => {
+    audioSrcRef.current?.disconnect()
+    audioSrcRef.current = null
+
+    if (!audioOn || !streamRef.current) return
+    const tracks = streamRef.current.getAudioTracks()
+    if (tracks.length <= 1) return
+
+    const ctx = audioCtxRef.current ?? new AudioContext()
+    audioCtxRef.current = ctx
+    if (ctx.state === 'suspended') void ctx.resume()
+
+    const nodes = tracks.map((t, i) => {
+      const src = ctx.createMediaStreamSource(new MediaStream([t]))
+      const gain = ctx.createGain()
+      gain.gain.value = i === audioTrack ? 1 : 0
+      src.connect(gain)
+      gain.connect(ctx.destination)
+      return { src, gain }
+    })
+
+    return () => { nodes.forEach(({ src, gain }) => { gain.disconnect(); src.disconnect() }) }
+  }, [audioOn, audioTrack, audioTrackCount])
+
+  useEffect(() => () => { void audioCtxRef.current?.close() }, [])
+
+  // Track actual decoded frames via video element events.
+  useEffect(() => {
+    const el = videoRef.current
+    if (!el) return
+    const check = () => setHasVideo(el.videoWidth > 0)
+    el.addEventListener('loadedmetadata', check)
+    el.addEventListener('resize', check)
+    return () => {
+      el.removeEventListener('loadedmetadata', check)
+      el.removeEventListener('resize', check)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!whepEndpoint) return
+    let cancelled = false
+    let countdownTimer: ReturnType<typeof setInterval> | null = null
+    let disconnectWatchdog: ReturnType<typeof setTimeout> | null = null
+    let authToken: string | undefined
+    let retryCount = 0
+    let generation = 0
+
+    setAudioTrackCount(0)
+    streamRef.current = null
+    setHasVideo(false)
+    setRetryAttempt(0)
+    setConnectionState('connecting')
+
+    const startCountdown = (seconds: number, onDone: () => void) => {
+      if (countdownTimer) clearInterval(countdownTimer)
+      setRetryCountdown(seconds)
+      let remaining = seconds - 1
+      countdownTimer = setInterval(() => {
+        if (cancelled) { clearInterval(countdownTimer!); return }
+        if (remaining <= 0) {
+          clearInterval(countdownTimer!)
+          countdownTimer = null
+          setRetryCountdown(null)
+          onDone()
+        } else {
+          setRetryCountdown(remaining--)
+        }
+      }, 1000)
+    }
+
+    const triggerRetry = () => {
+      if (cancelled) return
+      streamRef.current = null
+      if (videoRef.current) videoRef.current.srcObject = null
+      setHasVideo(false)
+      retryCount++
+      setRetryAttempt(retryCount)
+      if (retryCount >= MAX_RETRIES) {
+        setConnectionState('failed')
+        if (disconnectWatchdog) { clearTimeout(disconnectWatchdog); disconnectWatchdog = null }
+        disconnectWatchdog = setTimeout(() => {
+          if (cancelled) return
+          retryCount = MAX_RETRIES - 1
+          setRetryAttempt(retryCount)
+          connect()
+        }, 30_000)
+      } else {
+        setConnectionState('error')
+        startCountdown(3, connect)
+      }
+    }
+
+    const connect = () => {
+      if (cancelled) return
+      const myGen = ++generation
+      if (clientRef.current) {
+        // close() immediately — don't send DELETE so Strom's pipeline stays
+        // warm for the new session. disconnect() (with DELETE) is only used on
+        // intentional teardown in the effect cleanup below.
+        clientRef.current.close()
+        clientRef.current = null
+      }
+      setConnectionState('connecting')
+      setHasVideo(false)
+      // Rewrite localhost WHEP URL to use the server's hostname for LAN access
+      let resolvedEndpoint = whepEndpoint
+      try {
+        const u = new URL(whepEndpoint)
+        if (u.hostname === 'localhost' || u.hostname === '127.0.0.1') {
+          u.hostname = window.location.hostname
+          resolvedEndpoint = u.toString()
+        }
+      } catch { /* keep original */ }
+      const client = new WhepClient(
+        resolvedEndpoint,
+        {
+          onVideoTrack: (stream) => {
+            if (cancelled || generation !== myGen) return
+            streamRef.current = stream
+            if (videoRef.current) videoRef.current.srcObject = stream
+            setAudioTrackCount(stream.getAudioTracks().length)
+            stream.onaddtrack = (e) => {
+              if (e.track.kind === 'audio' && !cancelled && generation === myGen) {
+                setAudioTrackCount(stream.getAudioTracks().length)
+              }
+            }
+          },
+          onConnected: () => {
+            if (cancelled || generation !== myGen) return
+            if (disconnectWatchdog) { clearTimeout(disconnectWatchdog); disconnectWatchdog = null }
+            if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; setRetryCountdown(null) }
+            retryCount = 0
+            setRetryAttempt(0)
+            setConnectionState('connected')
+          },
+          onDisconnected: () => {
+            if (cancelled || generation !== myGen) return
+            streamRef.current = null
+            if (videoRef.current) videoRef.current.srcObject = null
+            setHasVideo(false)
+            setConnectionState('disconnected')
+            // ICE 'disconnected' can fire multiple times — always clear old watchdog first.
+            if (disconnectWatchdog) { clearTimeout(disconnectWatchdog); disconnectWatchdog = null }
+            disconnectWatchdog = setTimeout(() => {
+              if (cancelled || generation !== myGen) return
+              // Watchdog: fresh reconnect, not a WHEP retry. Reset retryCount so
+              // onError gets a full budget for the new connection attempt.
+              retryCount = 0
+              setRetryAttempt(0)
+              connect()
+            }, 5000)
+          },
+          onError: () => {
+            if (cancelled || generation !== myGen) return
+            if (disconnectWatchdog) { clearTimeout(disconnectWatchdog); disconnectWatchdog = null }
+            triggerRetry()
+          },
+        },
+        { iceServersUrl: `${API_BASE}/api/v1/ice-servers`, ...(whepEndpoint && !whepEndpoint.startsWith('http://localhost:') && !whepEndpoint.startsWith('http://127.') ? { proxyUrl: `${API_BASE}/api/v1/whep-proxy` } : {}), authToken },
+      )
+      clientRef.current = client
+      void client.connect()
+    }
+
+    const handleOnline = () => {
+      if (cancelled || clientRef.current?.isConnected()) return
+      if (clientRef.current?.isActive()) return
+      if (disconnectWatchdog) { clearTimeout(disconnectWatchdog); disconnectWatchdog = null }
+      if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; setRetryCountdown(null) }
+      retryCount = MAX_RETRIES - 1
+      setRetryAttempt(retryCount)
+      connect()
+    }
+    window.addEventListener('online', handleOnline)
+
+    getApiToken()
+      .catch(() => undefined)
+      .then((token) => {
+        if (cancelled) return
+        authToken = token
+        connect()
+      })
+
+    return () => {
+      cancelled = true
+      window.removeEventListener('online', handleOnline)
+      if (countdownTimer) clearInterval(countdownTimer)
+      if (disconnectWatchdog) clearTimeout(disconnectWatchdog)
+      setRetryCountdown(null)
+      setHasVideo(false)
+      if (clientRef.current) {
+        void clientRef.current.disconnect()
+        clientRef.current = null
+      }
+      if (videoRef.current) videoRef.current.srcObject = null
+      setConnectionState('disconnected')
+    }
+  }, [whepEndpoint])
+
+  // Show NO SIGNAL until the video element is actually decoding frames, regardless of ICE state.
+  const showNoSignal = !hasVideo
+  // Unmute video for single-track (direct output). Mute when AudioContext handles it (multi-track).
+  const videoMuted = !audioOn || audioTrackCount > 1
+
+  return (
+    <div className="relative h-full aspect-video max-w-full border border-zinc-800 flex flex-col" style={{ background: '#000' }}>
+      <div className="flex-1 min-h-0 relative">
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          muted={videoMuted}
+          className="h-full w-full object-contain"
+          style={{ visibility: showNoSignal ? 'hidden' : 'visible' }}
+        />
+        {showNoSignal && (
+          <div className="absolute inset-0 flex items-center justify-center bg-zinc-900" style={{ zIndex: 1 }}>
+            <span className="text-zinc-500 text-xs font-mono uppercase tracking-widest">NO SIGNAL</span>
+          </div>
+        )}
+        <div className="absolute bottom-2 right-2 pointer-events-none" style={{ zIndex: 2 }}>
+          {connectionState === 'connected' && hasVideo && <Badge variant="live" label="LIVE" />}
+          {(connectionState === 'connecting' || (connectionState === 'connected' && !hasVideo)) && (
+            <Badge variant="connecting" label="CONNECTING" />
+          )}
+          {connectionState === 'error' && (
+            <Badge variant="error" label={retryCountdown != null ? `RETRYING IN ${retryCountdown}` : 'RETRYING'} />
+          )}
+          {connectionState === 'failed' && <Badge variant="disconnected" label="SIGNAL LOST" />}
+        </div>
+      </div>
+    </div>
+  )
+})

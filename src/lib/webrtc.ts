@@ -1,0 +1,354 @@
+/**
+ * WebRTC utilities for the viewer.
+ * No signaling server in mock mode — uses getUserMedia or canvas color bars.
+ * See docs/repo-patterns.md: "WebRTC viewer fails on mobile without TURN"
+ */
+
+// ---------------------------------------------------------------------------
+// WhepClient — WHEP viewer connection
+// Ported from strom/backend/static/whep/whep.js.
+// ---------------------------------------------------------------------------
+
+type WhepCallbacks = {
+  onVideoTrack?: (stream: MediaStream) => void
+  onConnected?: () => void
+  onDisconnected?: () => void
+  onError?: (msg: string) => void
+}
+
+type WhepOptions = {
+  /** Override the ICE servers URL. Defaults to {endpoint origin}/api/ice-servers.
+   *  Use the backend proxy URL to avoid CORS/auth issues with remote Strom instances. */
+  iceServersUrl?: string
+  /** Proxy URL for WHEP SDP signaling. When set, POST/DELETE go to
+   *  {proxyUrl}?target={encodeURIComponent(stromUrl)} instead of Strom directly. */
+  proxyUrl?: string
+  /** Bearer token for authenticating requests to iceServersUrl and proxyUrl. */
+  authToken?: string
+}
+
+// How long to wait for ICE to reach 'connected' after the offer is posted.
+// Must be longer than the TURN allocation timeout (typically 4-8 s) so that
+// TURN failures have time to fall back to host/STUN candidates.
+const ICE_CONNECT_TIMEOUT_MS = 15_000
+
+export class WhepClient {
+  private pc: RTCPeerConnection | null = null
+  private resourceUrl: string | null = null
+  private iceConnectTimer: ReturnType<typeof setTimeout> | null = null
+  private connectingInProgress = false
+  private wasConnected = false
+
+  constructor(
+    private readonly endpoint: string,
+    private readonly callbacks: WhepCallbacks = {},
+    private readonly options: WhepOptions = {},
+  ) {}
+
+  async connect(): Promise<boolean> {
+    this.connectingInProgress = true
+    try {
+      // Fetch ICE config. Use the provided iceServersUrl (backend proxy) or fall
+      // back to the endpoint's origin — the proxy avoids CORS/auth issues with
+      // remote Strom instances.
+      const iceUrl = this.options.iceServersUrl ?? `${new URL(this.endpoint).origin}/api/ice-servers`
+      let iceServers: RTCIceServer[] = []
+      let iceTransportPolicy: RTCIceTransportPolicy = 'all'
+      const authHeaders: Record<string, string> = this.options.authToken ? { Authorization: `Bearer ${this.options.authToken}` } : {}
+      try {
+        const resp = await fetch(iceUrl, { headers: authHeaders })
+        if (resp.ok) {
+          // Backend proxy returns { iceServers }; Strom directly returns { ice_servers }
+          const cfg = await resp.json() as { iceServers?: RTCIceServer[]; ice_servers?: RTCIceServer[]; ice_transport_policy?: string }
+          const servers = cfg.iceServers ?? cfg.ice_servers
+          if (servers?.length) iceServers = servers
+          if (cfg.ice_transport_policy) iceTransportPolicy = cfg.ice_transport_policy as RTCIceTransportPolicy
+        }
+      } catch { /* use browser defaults */ }
+
+      this.pc = new RTCPeerConnection({ iceServers, iceTransportPolicy })
+
+      const remoteStream = new MediaStream()
+      this.pc.ontrack = (event) => {
+        remoteStream.addTrack(event.track)
+        if (event.track.kind === 'video') {
+          this.callbacks.onVideoTrack?.(remoteStream)
+        }
+      }
+
+      this.pc.oniceconnectionstatechange = () => {
+        const state = this.pc?.iceConnectionState
+        if (state === 'connected' || state === 'completed') {
+          this._clearIceConnectTimer()
+          this.callbacks.onConnected?.()
+          // Only re-attach tracks on ICE reconnect (not initial connect) — on
+          // first connect, ontrack already fired onVideoTrack with remoteStream.
+          // Replacing srcObject with a new MediaStream object on every ICE
+          // 'connected' event forces the browser to re-initialize the video
+          // decoder, causing bad framerate for several seconds.
+          if (this.wasConnected) this._reattachTracks()
+          this.wasConnected = true
+        } else if (state === 'failed') {
+          this._clearIceConnectTimer()
+          this.callbacks.onError?.('ICE connection failed — check TURN server')
+        } else if (state === 'disconnected') {
+          this.callbacks.onDisconnected?.()
+        }
+      }
+
+      this.pc.onicecandidateerror = (e) => {
+        // Log only non-sensitive fields — never log e.url (may contain TURN credentials)
+        if (import.meta.env.DEV) {
+          console.warn('[WhepClient] ICE candidate error:', e.errorCode, e.errorText)
+        }
+      }
+
+      this.pc.onicecandidate = (_e) => { /* ICE candidate events — no logging needed */ }
+
+      // Six audio transceivers: main + monitor + up to 4 aux buses.
+      // The server sets unused transceivers to inactive in its answer — offering
+      // more than the server uses is harmless. Must match or exceed num_audio_tracks
+      // on the WHEP output block (flow-generator wires main, monitor, aux1…auxN).
+      for (let i = 0; i < 6; i++) {
+        this.pc.addTransceiver('audio', { direction: 'recvonly' })
+      }
+      this.pc.addTransceiver('video', { direction: 'recvonly' })
+
+      const offer = await this.pc.createOffer()
+      // Enable Opus stereo locally — Chrome defaults to mono
+      offer.sdp = this._enableOpusStereo(offer.sdp ?? '')
+      await this.pc.setLocalDescription(offer)
+
+      // Wait for ICE gathering (5 s timeout).
+      // Longer than 2 s so TURN candidates have time to resolve even when DNS
+      // is slow. Browser host/STUN candidates arrive in < 100 ms — the extra
+      // wait only matters when TURN allocation is in progress.
+      await new Promise<void>((resolve) => {
+        if (this.pc?.iceGatheringState === 'complete') { resolve(); return }
+        const timer = setTimeout(resolve, 5000)
+        this.pc!.onicegatheringstatechange = () => {
+          if (this.pc?.iceGatheringState === 'complete') { clearTimeout(timer); resolve() }
+        }
+      })
+
+      // Strip Opus stereo params before sending — webrtcsink capsfilter rejects them
+      const serverSdp = this._stripOpusStereoForServer(this.pc.localDescription!.sdp)
+      const postUrl = this.options.proxyUrl
+        ? `${this.options.proxyUrl}?target=${encodeURIComponent(this.endpoint)}`
+        : this.endpoint
+      const resp = await fetch(postUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/sdp', ...authHeaders },
+        body: serverSdp,
+      })
+      if (!resp.ok) {
+        const text = await resp.text()
+        throw new Error(`WHEP ${resp.status}: ${text}`)
+      }
+
+      this.resourceUrl = resp.headers.get('Location')
+      const answerSdp = await resp.text()
+      await this.pc.setRemoteDescription({ type: 'answer', sdp: answerSdp })
+
+      // If ICE is already connected (e.g. loopback/same-host), skip the timer.
+      // Otherwise arm a watchdog: if ICE hasn't reached 'connected' within the
+      // timeout, treat it as a failure so the caller can retry. This catches the
+      // case where TURN is flaky and ICE gets stuck in 'checking' indefinitely.
+      const alreadyUp = this.pc.iceConnectionState === 'connected' || this.pc.iceConnectionState === 'completed'
+      if (!alreadyUp) {
+        this.iceConnectTimer = setTimeout(() => {
+          this.callbacks.onError?.(`ICE connection timed out after ${ICE_CONNECT_TIMEOUT_MS}ms`)
+          this.close()
+        }, ICE_CONNECT_TIMEOUT_MS)
+      }
+
+      return true
+    } catch (err) {
+      this.callbacks.onError?.((err as Error).message)
+      this.close()
+      return false
+    } finally {
+      this.connectingInProgress = false
+    }
+  }
+
+  async disconnect(): Promise<void> {
+    const resourceUrl = this.resourceUrl
+    this.close()  // tear down PC immediately; don't block on the DELETE
+    if (resourceUrl) {
+      try { await fetch(resourceUrl, { method: 'DELETE' }) } catch { /* ignore */ }
+    }
+  }
+
+  close(): void {
+    this.connectingInProgress = false
+    this._clearIceConnectTimer()
+    // Null pc before close() so oniceconnectionstatechange sees no PC and fires no callbacks.
+    const pc = this.pc
+    this.pc = null
+    this.resourceUrl = null
+    pc?.close()
+  }
+
+  private _clearIceConnectTimer(): void {
+    if (this.iceConnectTimer) { clearTimeout(this.iceConnectTimer); this.iceConnectTimer = null }
+  }
+
+  isConnected(): boolean {
+    const s = this.pc?.iceConnectionState
+    return s === 'connected' || s === 'completed'
+  }
+
+  /** True while a connection attempt is in progress — covers the async ICE-server fetch
+   *  before RTCPeerConnection is created, and the full ICE gather/check cycle after. */
+  isActive(): boolean {
+    return this.connectingInProgress || this.pc !== null
+  }
+
+  // Enable stereo for Opus — Chrome defaults to mono (stereo=0)
+  private _enableOpusStereo(sdp: string): string {
+    const match = sdp.match(/a=rtpmap:(\d+) opus\/48000\/2/i)
+    if (!match) return sdp
+    const pt = match[1]
+    return sdp.replace(new RegExp(`(a=fmtp:${pt} [^\r\n]+)`, 'g'), (m) =>
+      m.includes('stereo=') ? m : `${m};stereo=1;sprop-stereo=1`
+    )
+  }
+
+  // Strip stereo params before sending to server — webrtcsink codec discovery rejects them
+  private _stripOpusStereoForServer(sdp: string): string {
+    return sdp.replace(/;stereo=1/g, '').replace(/;sprop-stereo=1/g, '')
+  }
+
+  // Re-fire onVideoTrack with all live tracks from the current PC receivers.
+  // Called when ICE reconnects after a 'disconnected' event so callers that
+  // cleared srcObject on disconnect get the stream re-attached automatically.
+  private _reattachTracks(): void {
+    if (!this.pc) return
+    const tracks = this.pc.getReceivers()
+      .map(r => r.track)
+      .filter((t): t is MediaStreamTrack => t !== null && t.readyState === 'live')
+    const hasVideo = tracks.some(t => t.kind === 'video')
+    if (!hasVideo) return
+    this.callbacks.onVideoTrack?.(new MediaStream(tracks))
+  }
+}
+
+/**
+ * SMPTE-style color bar test signal via Canvas API.
+ * Used as fallback when camera is unavailable.
+ */
+export function createColorBarStream(): MediaStream {
+  const canvas = document.createElement('canvas')
+  canvas.width = 1280
+  canvas.height = 720
+  const ctx = canvas.getContext('2d')!
+
+  const bars = [
+    '#c0c0c0', // White
+    '#c0c000', // Yellow
+    '#00c0c0', // Cyan
+    '#00c000', // Green
+    '#c000c0', // Magenta
+    '#c00000', // Red
+    '#0000c0', // Blue
+    '#000000', // Black
+  ]
+
+  let frame = 0
+
+  function draw() {
+    const barWidth = canvas.width / bars.length
+    bars.forEach((color, i) => {
+      ctx.fillStyle = color
+      ctx.fillRect(i * barWidth, 0, barWidth, canvas.height * 0.75)
+    })
+
+    // Bottom sub-bars
+    ctx.fillStyle = '#00008B'
+    ctx.fillRect(0, canvas.height * 0.75, canvas.width * 0.125, canvas.height * 0.25)
+    ctx.fillStyle = '#ffffff'
+    ctx.fillRect(canvas.width * 0.125, canvas.height * 0.75, canvas.width * 0.125, canvas.height * 0.25)
+    ctx.fillStyle = '#1a1a6e'
+    ctx.fillRect(canvas.width * 0.25, canvas.height * 0.75, canvas.width * 0.5, canvas.height * 0.25)
+    ctx.fillStyle = '#000000'
+    ctx.fillRect(canvas.width * 0.75, canvas.height * 0.75, canvas.width * 0.25, canvas.height * 0.25)
+
+    // Frame counter overlay
+    ctx.fillStyle = 'rgba(0,0,0,0.6)'
+    ctx.fillRect(8, 8, 220, 28)
+    ctx.fillStyle = '#00ff00'
+    ctx.font = 'bold 14px monospace'
+    ctx.fillText(`OPEN LIVE — TEST SIGNAL  ${String(frame).padStart(6, '0')}`, 12, 26)
+    frame++
+  }
+
+  draw()
+  const interval = setInterval(draw, 1000 / 30)
+
+  const stream = canvas.captureStream(30)
+
+  // Clean up interval when stream ends
+  stream.getTracks().forEach((t) => {
+    t.addEventListener('ended', () => clearInterval(interval))
+  })
+
+  return stream
+}
+
+/**
+ * Acquires a canvas mock stream for a source tile. Never accesses the camera —
+ * real video comes from WHEP streams, not getUserMedia.
+ */
+export function getSourceStream(source: { color: string; name: string }): Promise<MediaStream> {
+  return Promise.resolve(createSourceStream(source.color, source.name))
+}
+
+/**
+ * Creates a colored canvas stream for a multiview cell (simulates a source feed).
+ */
+export function createSourceStream(color: string, label: string): MediaStream {
+  const canvas = document.createElement('canvas')
+  canvas.width = 640
+  canvas.height = 360
+  const ctx = canvas.getContext('2d')!
+
+  function draw() {
+    ctx.fillStyle = color
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+    // Grid lines
+    ctx.strokeStyle = 'rgba(255,255,255,0.1)'
+    ctx.lineWidth = 1
+    for (let x = 0; x < canvas.width; x += 64) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke()
+    }
+    for (let y = 0; y < canvas.height; y += 36) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke()
+    }
+
+    // Label
+    ctx.fillStyle = 'rgba(0,0,0,0.5)'
+    ctx.fillRect(0, canvas.height / 2 - 20, canvas.width, 40)
+    ctx.fillStyle = '#ffffff'
+    ctx.font = 'bold 18px system-ui'
+    ctx.textAlign = 'center'
+    ctx.fillText(label, canvas.width / 2, canvas.height / 2 + 6)
+    ctx.textAlign = 'left'
+
+    // Timecode
+    const now = new Date()
+    const tc = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}:00`
+    ctx.font = '12px monospace'
+    ctx.fillStyle = 'rgba(255,255,255,0.7)'
+    ctx.fillText(tc, 8, canvas.height - 8)
+  }
+
+  draw()
+  const interval = setInterval(draw, 1000)
+  const stream = canvas.captureStream(10)
+  stream.getTracks().forEach((t) => {
+    t.addEventListener('ended', () => clearInterval(interval))
+  })
+  return stream
+}

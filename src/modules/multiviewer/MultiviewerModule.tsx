@@ -1,26 +1,43 @@
-import { useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { SendFn } from '@/studio/types'
-import { eventBus } from '@/shared/event-bus'
-import { useMultiviewerStore } from './multiviewer.store'
+import { useWebRTC } from '@/hooks/useWebRTC'
+import { useViewerStore } from '@/store/viewer.store'
+import { request } from '@/shared/api'
 
 export function MultiviewerModule({ productionId }: { send: SendFn; productionId: string | null }) {
-  const connected = useMultiviewerStore(s => s.connected)
-  const setConnected = useMultiviewerStore(s => s.setConnected)
+  const [whepEndpoint, setWhepEndpoint] = useState<string | null>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const programStream = useViewerStore(s => s.programStream)
+  const connectionState = useViewerStore(s => s.connectionState)
 
   useEffect(() => {
-    const offActivated = eventBus.on('PRODUCTION_ACTIVATED', () => setConnected(true))
-    const offDeactivated = eventBus.on('PRODUCTION_DEACTIVATED', () => setConnected(false))
-    return () => {
-      offActivated()
-      offDeactivated()
+    if (!productionId) {
+      setWhepEndpoint(null)
+      return
     }
-  }, [setConnected])
+    request<{ multiviewEndpoint?: string }>(`/api/v1/productions/${productionId}`)
+      .then(d => setWhepEndpoint(d.multiviewEndpoint || null))
+      .catch(() => setWhepEndpoint(null))
+  }, [productionId])
+
+  useWebRTC(whepEndpoint)
+
+  useEffect(() => {
+    const video = videoRef.current
+    if (video && programStream && video.srcObject !== programStream) {
+      video.srcObject = programStream
+    }
+  }, [programStream])
 
   return (
-    <div className="bg-zinc-900 rounded border border-zinc-700 p-4 w-full h-full flex items-center justify-center">
-      <span className="text-zinc-400 text-sm">
-        Multiviewer {productionId && connected ? '●' : '○'}
-      </span>
+    <div className="bg-black rounded w-full h-full flex items-center justify-center relative">
+      {connectionState === 'connected' ? (
+        <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-contain" />
+      ) : connectionState === 'connecting' ? (
+        <span className="text-zinc-500 text-xs">connecting...</span>
+      ) : (
+        <span className="text-zinc-700 text-xs">offline</span>
+      )}
     </div>
   )
 }
