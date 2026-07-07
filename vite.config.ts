@@ -4,6 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 import { resolve } from 'path'
 
 const OPEN_LIVE_URL = process.env.OPEN_LIVE_URL || 'http://localhost:8000'
+const STROM_URL = process.env.STROM_URL || 'http://open-live:8080'
 
 export default defineConfig({
   envPrefix: ['OPEN_LIVE_', 'VITE_', 'OSC_'],
@@ -21,6 +22,7 @@ export default defineConfig({
     proxy: {
       '/api': OPEN_LIVE_URL,
       '/ws': { target: OPEN_LIVE_URL, ws: true },
+      '/strom': { target: STROM_URL, rewrite: (path) => path.replace(/^\/strom/, '/api') },
     },
   },
 })
