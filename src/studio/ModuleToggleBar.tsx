@@ -1,38 +1,18 @@
-import { useEffect, useState } from 'react'
 import { MODULES } from './ModuleRegistry'
 import { isModuleVisible, setModuleVisible, useVisibilityVersion } from './SlotLayout'
-import { request } from '@/shared/api'
 import { cn } from '@/shared/cn'
 
 interface Production {
-  id: string
+  _id: string
   name?: string
 }
 
-export function ModuleToggleBar({ productionId, onSelectProduction }: {
+export function ModuleToggleBar({ productions = [], productionId, onSelectProduction }: {
+  productions?: Production[]
   productionId: string | null
   onSelectProduction?: (id: string | null) => void
 }) {
-  const [productions, setProductions] = useState<Production[]>([])
   useVisibilityVersion()
-
-  useEffect(() => {
-    let cancelled = false
-    request<unknown>('/api/v1/productions')
-      .then(data => {
-        if (cancelled) return
-        const list = Array.isArray(data)
-          ? data
-          : (data as { productions?: unknown } | null)?.productions
-        if (Array.isArray(list)) {
-          setProductions(list as Production[])
-        }
-      })
-      .catch(() => {
-        /* selector stays empty when backend is unavailable */
-      })
-    return () => { cancelled = true }
-  }, [])
 
   return (
     <header className="flex items-center gap-3 px-3 h-11 shrink-0 bg-neutral-900 border-b border-neutral-800">
@@ -47,7 +27,7 @@ export function ModuleToggleBar({ productionId, onSelectProduction }: {
       >
         <option value="">Select production…</option>
         {productions.map(p => (
-          <option key={p.id} value={p.id}>{p.name ?? p.id}</option>
+          <option key={p._id} value={p._id}>{p.name ?? p._id}</option>
         ))}
       </select>
 

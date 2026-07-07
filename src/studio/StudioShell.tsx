@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useEffect } from 'react'
 import { WsProvider } from './WsProvider'
 import { SlotLayout } from './SlotLayout'
 import { ModuleToggleBar } from './ModuleToggleBar'
 import { eventBus } from '@/shared/event-bus'
+import { useProductionsStore } from '@/studio/productions.store'
 import '@/modules/multiviewer'
 import '@/modules/pgm'
 import '@/modules/timer'
@@ -12,14 +13,26 @@ import '@/modules/looks'
 import '@/modules/pip'
 import '@/modules/mediaplayer'
 
-export function StudioShell({ productionId: initialProductionId }: { productionId: string | null }) {
-  const [productionId, setProductionId] = useState<string | null>(initialProductionId)
+export function StudioShell(_props: { productionId: string | null }) {
+  const { productions, activeId, fetch, setActive } = useProductionsStore()
+
+  useEffect(() => { fetch() }, [fetch])
+
+  const handleSelect = (id: string | null) => {
+    setActive(id)
+    if (id) eventBus.emit('PRODUCTION_ACTIVATED', { productionId: id })
+    else eventBus.emit('PRODUCTION_DEACTIVATED', undefined)
+  }
 
   return (
-    <WsProvider productionId={productionId} eventBus={eventBus}>
+    <WsProvider productionId={activeId} eventBus={eventBus}>
       <div className="h-screen w-screen bg-black flex flex-col overflow-hidden">
         {/* Header bar */}
-        <ModuleToggleBar productionId={productionId} onSelectProduction={setProductionId} />
+        <ModuleToggleBar
+          productions={productions}
+          productionId={activeId}
+          onSelectProduction={handleSelect}
+        />
 
         {/* Top row: multiviewer + pgm */}
         <div className="flex-1 flex min-h-0">
