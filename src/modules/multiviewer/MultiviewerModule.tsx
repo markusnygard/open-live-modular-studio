@@ -9,6 +9,7 @@ export function MultiviewerModule({ productionId }: { send: SendFn; productionId
   const videoRef = useRef<HTMLVideoElement>(null)
   const programStream = useViewerStore(s => s.programStream)
   const connectionState = useViewerStore(s => s.connectionState)
+  const isMuted = useViewerStore(s => s.isMuted)
 
   useEffect(() => {
     if (!productionId) {
@@ -36,7 +37,7 @@ export function MultiviewerModule({ productionId }: { send: SendFn; productionId
   return (
     <div className="bg-black rounded w-full h-full flex items-center justify-center relative">
       {connectionState === 'connected' ? (
-        <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-contain" />
+        <video ref={videoRef} autoPlay playsInline muted={isMuted} className="w-full h-full object-contain" />
       ) : connectionState === 'connecting' ? (
         <span className="text-zinc-500 text-xs">connecting...</span>
       ) : (

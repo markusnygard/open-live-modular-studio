@@ -38,5 +38,5 @@ export function PgmModule({ productionId }: { send: SendFn; productionId: string
   }
 
   const P = PgmPreviewComp!
-  return <P channels={[{ label: 'PGM', url: pgmEndpoint }]} audioOn={false} onAudioOnChange={() => {}} audioTrack={0} onAudioTrackChange={() => {}} />
+  return <P channels={[{ label: 'PGM', url: pgmEndpoint }]} audioOn={true} onAudioOnChange={() => {}} audioTrack={0} onAudioTrackChange={() => {}} />
 }
