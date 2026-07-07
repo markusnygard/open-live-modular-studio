@@ -42,7 +42,7 @@ export function MultiviewerModule({ productionId }: { send: SendFn; productionId
   return (
     <div className="bg-black rounded w-full h-full flex items-center justify-center relative">
       {connectionState === 'connected' ? (
-        <video ref={videoRef} autoPlay playsInline className="w-full h-full object-contain" />
+        <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-contain" />
       ) : connectionState === 'connecting' ? (
         <span className="text-zinc-500 text-xs">connecting...</span>
       ) : (
