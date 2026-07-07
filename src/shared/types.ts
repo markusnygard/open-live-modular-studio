@@ -1,3 +1,59 @@
+// ─── Picture-in-Picture protocol types ──────────────────────────────────────────
+export interface ZoneBorder {
+  /** #RRGGBB or #RRGGBBAA hex string */
+  color: string
+  /** Width in PGM canvas pixels (0–64) */
+  width: number
+}
+
+export interface PipZone {
+  rect: { x: number; y: number; w: number; h: number } | null
+  capacity: number | null
+  sources: number[]
+  /** Border drawn around each source box in this zone. Strom 0.6.6+. */
+  border?: ZoneBorder
+}
+
+/** Normalized per-source crop: fraction hidden from each edge (0.0–1.0). */
+export interface SourceCrop {
+  left: number
+  top: number
+  right: number
+  bottom: number
+}
+
+/** Map of input index → SourceCrop. Strom 0.6.2+. */
+export type PipTransforms = Record<number, SourceCrop>
+
+export interface PipConfig {
+  bg: number | null
+  zones: PipZone[]
+  /** Per-source crop/zoom transforms. Strom 0.6.2+; defaults to {} on older Strom. */
+  transforms: PipTransforms
+}
+
+// ─── Video effect (Looks/FX) protocol types ────────────────────────────────────
+export type VideoEffect =
+  | { type: 'none' }
+  | { type: 'chroma_key'; key_color: string; similarity: number; smoothness: number; spill: number }
+  | { type: 'pixelate'; block_size: number }
+  | { type: 'blur'; radius: number }
+  | { type: 'duotone'; low: string; high: string; mix: number }
+  | { type: 'vignette'; amount: number; softness: number }
+  | { type: 'vhs'; intensity: number }
+  | { type: 'old_film'; intensity: number }
+  | { type: 'edge_glow'; color: string; intensity: number }
+  | { type: 'crt'; intensity: number }
+  | { type: 'halftone'; dot_size: number }
+  | { type: 'thermal'; intensity: number }
+  | { type: 'night_vision'; intensity: number }
+  | { type: 'posterize'; levels: number }
+  | { type: 'underwater'; intensity: number }
+  | { type: 'color_correct'; brightness: number; contrast: number; saturation: number; hue: number; gamma: number; temperature: number; tint: number }
+
+/** Target for a video effect: an input index or the master output. */
+export type EffectTarget = { input: number } | 'master'
+
 export type OutboundMessage =
   | { type: 'CUT'; mixerInput: string; afvRampMs?: number }
   | { type: 'TRANSITION'; mixerInput: string; transitionType: string; durationMs?: number; afvRampMs?: number }
@@ -31,5 +87,8 @@ export type OutboundMessage =
   | { type: 'MEDIAPLAYER_TOGGLE_LOOP'; sourceId: string; active: boolean }
   | { type: 'MEDIAPLAYER_SET_PLAYLIST'; sourceId: string; files: string[] }
   | { type: 'AUDIO_DYNAMICS_SET'; channel: number; property: string; value: number | boolean }
+  | { type: 'SET_EFFECT'; target: EffectTarget; effect: VideoEffect }
+  | { type: 'SET_PIP'; pip: number; bg: number | null; zones: PipZone[]; transforms?: PipTransforms }
+  | { type: 'SELECT_PVW_PIP'; pip: number }
 
 export type SendFn = (message: OutboundMessage) => void
