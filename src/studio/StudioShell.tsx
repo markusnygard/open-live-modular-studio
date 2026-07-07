@@ -3,7 +3,9 @@ import { WsProvider } from './WsProvider'
 import { SlotLayout } from './SlotLayout'
 import { ModuleToggleBar } from './ModuleToggleBar'
 import { eventBus } from '@/shared/event-bus'
-import '@/modules/__test__'
+import '@/modules/multiviewer'
+import '@/modules/pgm'
+import '@/modules/timer'
 
 export function StudioShell({ productionId: initialProductionId }: { productionId: string | null }) {
   const [productionId, setProductionId] = useState<string | null>(initialProductionId)
