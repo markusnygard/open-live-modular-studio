@@ -15,6 +15,8 @@ import {
   SrtStreamIcon, EfpStreamIcon, RecorderIcon, NdiIcon, SdiIcon,
 } from '@/studio/icons'
 import { useProductionStore } from '@/store/production.store'
+import { useControllerStore } from '@/modules/controller/controller.store'
+import { ControllerOptionsModal } from '@/modules/controller/ControllerOptionsModal'
 import { useProductionsStore } from '@/store/productions.store'
 import { useSourcesStore } from '@/store/sources.store'
 import { useOutputsStore } from '@/store/outputs.store'
@@ -267,7 +269,7 @@ function StudioPageInner({ productionId }: { productionId: string }) {
                 <ModuleHeader icon={getModuleById('controller')?.icon ?? <></>} label="Controller"
                   onHide={() => setModuleVisible('controller', false)}
                   onPopOut={() => window.open(`/pane/controller?production=${productionId}`, '_blank', 'noopener')}
-                  onSettings={() => setControllerOptionsOpen(true)}
+                  onSettings={() => useControllerStore.getState().setOptionsOpen(true)}
                   tooltip="Vision mixer controls. Click a source to set it on preview, then press Cut or Auto to take it to programme. Toggle FTB to fade to black. Use DSK to layer graphics over programme. Press the gear icon to set transition types and source timing offsets." />
                 <div className="flex-1 min-h-0 overflow-hidden">
                   <ModuleRenderer moduleId="controller" send={send} productionId={productionId} />
@@ -361,6 +363,10 @@ function StudioPageInner({ productionId }: { productionId: string }) {
           </div>
         </div>
       </Modal>
+
+      {/* ── Controller options modal ────────────────────────────────────────── */}
+      <ControllerOptionsModal send={send} />
+
     </div>
   )
 }
