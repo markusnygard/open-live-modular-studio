@@ -14,7 +14,10 @@ export function PgmModule({ productionId }: { send: SendFn; productionId: string
     }
     import('@/shared/api').then(({ request }) => {
       request<{ pgmWhepEndpoint?: string }>(`/api/v1/productions/${productionId}`)
-        .then(d => setPgmEndpoint(d.pgmWhepEndpoint || null))
+        .then(d => {
+          const raw = d.pgmWhepEndpoint || null
+          setPgmEndpoint(raw ? raw.replace('localhost', window.location.hostname) : null)
+        })
         .catch(() => setPgmEndpoint(null))
     })
   }, [productionId])

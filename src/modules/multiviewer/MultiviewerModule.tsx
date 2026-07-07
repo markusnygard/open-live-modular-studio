@@ -15,8 +15,12 @@ export function MultiviewerModule({ productionId }: { send: SendFn; productionId
       setWhepEndpoint(null)
       return
     }
-    request<{ multiviewEndpoint?: string }>(`/api/v1/productions/${productionId}`)
-      .then(d => setWhepEndpoint(d.multiviewEndpoint || null))
+    request<{ whepEndpoint?: string }>(`/api/v1/productions/${productionId}`)
+      .then(d => {
+        const raw = d.whepEndpoint || null
+        // Replace localhost with browser-accessible hostname
+        setWhepEndpoint(raw ? raw.replace('localhost', window.location.hostname) : null)
+      })
       .catch(() => setWhepEndpoint(null))
   }, [productionId])
 
