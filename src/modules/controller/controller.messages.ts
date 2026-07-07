@@ -26,11 +26,17 @@ export function useControllerMessages(): void {
     const offs: Array<() => void> = []
 
     offs.push(onMessage('TALLY', (msg: Record<string, unknown>) => {
-      if (typeof msg['pgm'] === 'string' || msg['pgm'] === null) {
+      if (msg['pgm'] === null || typeof msg['pgm'] === 'string') {
         setPgm(msg['pgm'] as string)
       }
-      if (typeof msg['pvw'] === 'string' || msg['pvw'] === null) {
+      if (msg['pvw'] === null || typeof msg['pvw'] === 'string') {
         setPvw(msg['pvw'] as string)
+      }
+      if (typeof msg['pgmPip'] === 'number' || msg['pgmPip'] === null) {
+        useControllerStore.setState({
+          pgmPip: msg['pgmPip'] != null ? msg['pgmPip'] as number : null,
+          pvwPip: msg['pvwPip'] != null ? msg['pvwPip'] as number : null,
+        })
       }
     }))
 

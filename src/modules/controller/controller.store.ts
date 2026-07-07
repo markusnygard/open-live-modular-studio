@@ -141,7 +141,7 @@ interface ControllerActions {
   cut: () => void
   auto: () => void
   ftb: () => void
-  setPvw: (mixerInput: string) => void
+  setPvw: (mixerInput: string | null) => void
   setPgm: (mixerInput: string) => void
   setTransitionType: (type: TransitionType) => void
   setTransitionDuration: (ms: number) => void
