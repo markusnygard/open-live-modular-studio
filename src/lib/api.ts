@@ -1,0 +1,424 @@
+export { BASE } from './base.js'
+import { BASE } from './base.js'
+import { authenticateWithOpenLive, getApiToken, isOnOsc } from './sat.js'
+
+// Paths that manage their own error toasts — skip global handler
+const SILENT_PATHS = ['/api/v1/status', '/api/v1/reconnect']
+
+interface RequestOptions extends RequestInit {
+  // Status codes to treat as success (no toast, no throw). Useful for idempotent deletes.
+  silentStatuses?: number[]
+}
+
+export async function request<T>(path: string, init?: RequestOptions): Promise<T> {
+  await authenticateWithOpenLive()
+  const token = await getApiToken()
+  const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {}
+  const contentHeaders: Record<string, string> = init?.body !== undefined ? { 'Content-Type': 'application/json' } : {}
+
+  const { silentStatuses, ...fetchInit } = init ?? {}
+  const res = await fetch(`${BASE}${path}`, {
+    headers: { ...contentHeaders, ...authHeaders },
+    ...fetchInit,
+  })
+  if (!res.ok) {
+    if (silentStatuses?.includes(res.status)) return undefined as T
+    const err = await res.json().catch(() => ({ error: res.statusText }))
+    const message = (err as { error?: string }).error ?? res.statusText
+    if (!SILENT_PATHS.includes(path)) {
+      const { useToastStore } = await import('../store/toast.store')
+      const { upsertToastByTag } = useToastStore.getState()
+      if (res.status === 503) {
+        const { runReconnect } = await import('../hooks/useConnectionCheck')
+        upsertToastByTag('connection', 'Connection issues detected:', 'error', {
+          persistent: true,
+          onReconnect: runReconnect,
+          issues: ['Database unreachable'],
+          mergeIssues: true,
+        })
+      } else {
+        const { isInitialCheckDone } = await import('../hooks/useConnectionCheck')
+        if (isInitialCheckDone()) {
+          upsertToastByTag('api-error', message, 'error', { persistent: false })
+        }
+      }
+    }
+    throw new Error(message)
+  }
+  if (res.status === 204) return undefined as T
+  return res.json() as Promise<T>
+}
+
+export type StreamType = 'srt' | 'efp' | 'whip' | 'test1' | 'test2' | 'html' | 'ndi' | 'sdi' | 'mediaplayer'
+
+export interface ApiSource {
+  id: string
+  name: string
+  address: string
+  streamType: StreamType
+  status: 'active' | 'inactive'
+  liveCamera?: boolean
+  latency?: number
+  playlist?: string[]
+}
+
+export interface ProductionSourceAssignment {
+  sourceId: string
+  mixerInput: string
+}
+
+export interface ProductionGraphicAssignment {
+  graphicId: string
+  dskInput: string
+}
+
+export type OutputType = 'mpegtssrt' | 'efpsrt' | 'whep' | 'ndi' | 'sdi' | 'recorder'
+
+export interface ApiOutput {
+  id: string
+  name: string
+  outputType: OutputType
+  url?: string
+  outputDir?: string
+  container?: string
+  audioSource?: string
+  videoSource?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ProductionOutputAssignment {
+  outputId: string
+}
+
+export interface ApiProduction {
+  id: string
+  name: string
+  status: 'active' | 'inactive' | 'activating'
+  sources: ProductionSourceAssignment[]
+  graphicAssignments?: ProductionGraphicAssignment[]
+  outputAssignments?: ProductionOutputAssignment[]
+  whepOutputUrls?: Array<{ outputId: string; url: string }>
+  stromFlowId?: string
+  whepEndpoint?: string
+  pgmWhepEndpoint?: string
+  whipEndpoints?: Array<{ mixerInput: string; url: string }>
+  srtOutputUri?: string
+  values?: Record<string, string | number | boolean>
+  airTime?: string
+  deletionWarnings?: Array<{ type: 'source' | 'graphic' | 'output'; name: string }>
+  autoDeactivated?: boolean
+  subscriberCount?: number
+  /** Unix ms timestamp when this production will be auto-deactivated due to idle. Set by backend watchdog. */
+  idleExpiresAt?: number
+  /** Negotiated input resolutions from Strom, indexed by mixer input position. Null = caps not yet negotiated. */
+  inputResolutions?: Array<{ width: number; height: number } | null>
+}
+
+export interface ProductionConfig {
+  _id: string
+  name: string
+  values: Record<string, string | number | boolean>
+  createdAt: string
+  updatedAt: string
+}
+
+type RawProduction = {
+  _id: string
+  name: string
+  status: 'active' | 'inactive' | 'activating'
+  sources: ProductionSourceAssignment[]
+  graphicAssignments?: ProductionGraphicAssignment[]
+  outputAssignments?: ProductionOutputAssignment[]
+  whepOutputUrls?: Array<{ outputId: string; url: string }>
+  stromFlowId?: string
+  whepEndpoint?: string
+  pgmWhepEndpoint?: string
+  whipEndpoints?: Array<{ mixerInput: string; url: string }>
+  srtOutputUri?: string
+  values?: Record<string, string | number | boolean>
+  airTime?: string
+  deletionWarnings?: Array<{ type: 'source' | 'graphic' | 'output'; name: string }>
+  autoDeactivated?: boolean
+  subscriberCount?: number
+  idleExpiresAt?: number
+  inputResolutions?: Array<{ width: number; height: number } | null>
+}
+
+function normalizeProduction(d: RawProduction): ApiProduction {
+  return {
+    id: d._id,
+    name: d.name,
+    status: d.status,
+    sources: d.sources ?? [],
+    graphicAssignments: d.graphicAssignments ?? [],
+    outputAssignments: d.outputAssignments ?? [],
+    whepOutputUrls: d.whepOutputUrls,
+    stromFlowId: d.stromFlowId,
+    whepEndpoint: d.whepEndpoint,
+    pgmWhepEndpoint: d.pgmWhepEndpoint,
+    whipEndpoints: d.whipEndpoints,
+    srtOutputUri: d.srtOutputUri,
+    values: d.values,
+    airTime: d.airTime,
+    deletionWarnings: d.deletionWarnings,
+    autoDeactivated: d.autoDeactivated,
+    subscriberCount: d.subscriberCount,
+    idleExpiresAt: d.idleExpiresAt,
+    inputResolutions: d.inputResolutions,
+  }
+}
+
+export const productionsApi = {
+  list: () =>
+    request<RawProduction[]>('/api/v1/productions')
+      .then((docs) => docs.map(normalizeProduction)),
+
+  get: (id: string) =>
+    request<RawProduction>(`/api/v1/productions/${id}`)
+      .then(normalizeProduction),
+
+  create: (body: { name: string }) =>
+    request<RawProduction>('/api/v1/productions', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }).then(normalizeProduction),
+
+  update: (id: string, body: { name?: string; values?: Record<string, string | number | boolean>; airTime?: string | null }) =>
+    request<RawProduction>(`/api/v1/productions/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }).then(normalizeProduction),
+
+  activate: (id: string) =>
+    request<RawProduction>(`/api/v1/productions/${id}/activate`, { method: 'POST' })
+      .then(normalizeProduction),
+
+  deactivate: (id: string) =>
+    request<RawProduction>(`/api/v1/productions/${id}/deactivate`, { method: 'POST' })
+      .then(normalizeProduction),
+
+  remove: (id: string) =>
+    request<void>(`/api/v1/productions/${id}`, { method: 'DELETE' }),
+
+  assignSource: (id: string, body: ProductionSourceAssignment) =>
+    request<ProductionSourceAssignment & { _rev: string }>(`/api/v1/productions/${id}/sources`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  unassignSource: (id: string, mixerInput: string) =>
+    request<void>(`/api/v1/productions/${id}/sources/${encodeURIComponent(mixerInput)}`, { method: 'DELETE', silentStatuses: [404] }),
+
+  assignGraphic: (id: string, body: ProductionGraphicAssignment) =>
+    request<ProductionGraphicAssignment & { _rev: string }>(`/api/v1/productions/${id}/graphics`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  unassignGraphic: (id: string, dskInput: string) =>
+    request<void>(`/api/v1/productions/${id}/graphics/${encodeURIComponent(dskInput)}`, { method: 'DELETE' }),
+
+  assignOutput: (id: string, outputId: string) =>
+    request<ProductionOutputAssignment & { _rev: string }>(`/api/v1/productions/${id}/outputs`, {
+      method: 'POST',
+      body: JSON.stringify({ outputId }),
+    }),
+
+  unassignOutput: (id: string, outputId: string) =>
+    request<void>(`/api/v1/productions/${id}/outputs/${encodeURIComponent(outputId)}`, { method: 'DELETE' }),
+}
+
+export const sourcesApi = {
+  list: () =>
+    request<ApiSource[]>('/api/v1/sources'),
+
+  create: (body: Omit<ApiSource, 'id'>) =>
+    request<ApiSource>('/api/v1/sources', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  update: (id: string, body: Partial<Omit<ApiSource, 'id'>>) =>
+    request<ApiSource>(`/api/v1/sources/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+
+  remove: (id: string) =>
+    request<void>(`/api/v1/sources/${id}`, { method: 'DELETE' }),
+}
+
+export interface NdiSource {
+  id: string
+  name: string
+  device_class: string
+  category: string
+  provider: string
+  properties: Record<string, string>
+}
+
+export const ndiApi = {
+  sources: () => request<NdiSource[]>('/api/v1/ndi/sources'),
+}
+
+export interface Capabilities {
+  ndi: boolean
+  sdi: boolean
+  sdiDevices: number
+}
+
+export const capabilitiesApi = {
+  get: () => request<Capabilities>('/api/v1/capabilities'),
+}
+
+// --------------- Macro types ---------------
+
+export interface ApiMacroAction {
+  type: 'CUT' | 'TRANSITION' | 'TAKE' | 'GRAPHIC_ON' | 'GRAPHIC_OFF' | 'DSK_TOGGLE'
+  sourceId?: string
+  transitionType?: string
+  durationMs?: number
+  overlayId?: string
+  layer?: number
+  visible?: boolean
+}
+
+export interface ApiMacro {
+  id: string
+  slot: number
+  label: string
+  color: string
+  actions: ApiMacroAction[]
+}
+
+export interface ApiAudioElement {
+  id: string
+  blockId: string
+  elementId: string
+  label: string
+  mixerInput: string | null
+}
+
+export const macrosApi = {
+  list: (productionId: string) =>
+    request<ApiMacro[]>(`/api/v1/productions/${productionId}/macros`),
+
+  create: (productionId: string, body: Omit<ApiMacro, 'id'>) =>
+    request<ApiMacro>(`/api/v1/productions/${productionId}/macros`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  update: (productionId: string, macroId: string, body: Partial<Omit<ApiMacro, 'id'>>) =>
+    request<ApiMacro>(`/api/v1/productions/${productionId}/macros/${macroId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+
+  remove: (productionId: string, macroId: string) =>
+    request<void>(`/api/v1/productions/${productionId}/macros/${macroId}`, { method: 'DELETE' }),
+}
+
+export const audioApi = {
+  discoverElements: (productionId: string) =>
+    request<ApiAudioElement[]>(`/api/v1/productions/${productionId}/audio`),
+
+  getElement: (productionId: string, elementId: string) =>
+    request<{ element_id: string; properties: Record<string, unknown> }>(
+      `/api/v1/productions/${productionId}/audio/${elementId}`,
+    ),
+
+  updateElement: (productionId: string, elementId: string, body: { property: string; value: unknown }) =>
+    request<{ element_id: string; properties: Record<string, unknown> }>(
+      `/api/v1/productions/${productionId}/audio/${elementId}`,
+      { method: 'PATCH', body: JSON.stringify(body) },
+    ),
+}
+
+export const iceServersApi = {
+  get: () =>
+    request<{ iceServers: RTCIceServer[] }>('/api/v1/ice-servers'),
+}
+
+export interface ApiStatus {
+  db: boolean
+  strom: boolean
+}
+
+export const statusApi = {
+  get: () => request<ApiStatus>('/api/v1/status'),
+  reconnect: () => request<{ ok: boolean; db: boolean; strom: boolean }>('/api/v1/reconnect', { method: 'POST' }),
+}
+
+export const serverInfoApi = {
+  get: () => request<{ stromHost: string }>('/api/v1/server-info'),
+}
+
+export const productionConfigsApi = {
+  list: () =>
+    request<ProductionConfig[]>('/api/v1/production-configs'),
+
+  create: (body: { name: string; values: Record<string, string | number | boolean> }) =>
+    request<ProductionConfig>('/api/v1/production-configs', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  update: (id: string, body: { name?: string; values?: Record<string, string | number | boolean> }) =>
+    request<ProductionConfig>(`/api/v1/production-configs/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+
+  remove: (id: string) =>
+    request<void>(`/api/v1/production-configs/${id}`, { method: 'DELETE' }),
+}
+
+export interface ApiGraphic {
+  id: string
+  name: string
+  url: string
+  createdAt: string
+  updatedAt: string
+}
+
+export const graphicsApi = {
+  list: () =>
+    request<ApiGraphic[]>('/api/v1/graphics'),
+
+  create: (body: { name: string; url: string }) =>
+    request<ApiGraphic>('/api/v1/graphics', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  update: (id: string, body: { name?: string; url?: string }) =>
+    request<ApiGraphic>(`/api/v1/graphics/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+
+  remove: (id: string) =>
+    request<void>(`/api/v1/graphics/${id}`, { method: 'DELETE' }),
+}
+
+export const outputsApi = {
+  list: () =>
+    request<ApiOutput[]>('/api/v1/outputs'),
+
+  create: (body: { name: string; outputType: OutputType; url?: string }) =>
+    request<ApiOutput>('/api/v1/outputs', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  update: (id: string, body: { name?: string; url?: string }) =>
+    request<ApiOutput>(`/api/v1/outputs/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+
+  remove: (id: string) =>
+    request<void>(`/api/v1/outputs/${id}`, { method: 'DELETE' }),
+}

@@ -1,15 +1,22 @@
-import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { App } from './app'
+import { RouterProvider } from 'react-router'
+import { router } from './app'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import './index.css'
 
-const rootElement = document.getElementById('root')
-if (!rootElement) {
-  throw new Error('Root element #root not found')
-}
+// Global safety net for unhandled promise rejections and uncaught errors.
+window.addEventListener('unhandledrejection', (e) => {
+  console.error('[global] Unhandled promise rejection:', e.reason)
+})
+window.addEventListener('error', (e) => {
+  console.error('[global] Uncaught error:', e.error ?? e.message)
+})
 
-createRoot(rootElement).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
+const rootEl = document.getElementById('root')
+if (!rootEl) throw new Error('Root element not found')
+
+createRoot(rootEl).render(
+  <ErrorBoundary>
+    <RouterProvider router={router} />
+  </ErrorBoundary>,
 )

@@ -18,10 +18,18 @@ import '@/modules/outputs/recording'
 import '@/modules/outputs/ndi-output'
 import '@/modules/outputs/sdi-output'
 
-export function StudioShell(_props: { productionId: string | null }) {
+export function StudioShell({ productionId }: { productionId: string | null }) {
   const { productions, activeId, fetch, setActive } = useProductionsStore()
 
   useEffect(() => { fetch() }, [fetch])
+
+  useEffect(() => {
+    if (productionId && productionId !== activeId) {
+      setActive(productionId)
+      eventBus.emit('PRODUCTION_ACTIVATED', { productionId })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productionId])
 
   const handleSelect = (id: string | null) => {
     setActive(id)
