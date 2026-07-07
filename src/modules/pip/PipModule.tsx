@@ -9,6 +9,7 @@ import { cn } from '@/shared/cn'
 import type { PipConfig, PipTransforms, SourceCrop, ZoneBorder } from '@/shared/types'
 import { usePipStore } from './pip.store'
 import { usePipMessages } from './pip.messages'
+import { fetchPipState, fetchMixerBlockId } from './pip.api'
 
 // ── Minimal tooltip — native title-based hover (replaces the app UI Tooltip) ────
 function Tooltip({ content, children }: { content: string; children: ReactNode }) {
@@ -20,6 +21,7 @@ interface RawProduction {
   sources?: Array<{ sourceId: string; mixerInput: string }>
   values?: Record<string, string | number | boolean>
   inputResolutions?: Array<{ width: number; height: number } | null>
+  stromFlowId?: string
 }
 interface RawSource { id: string; name: string }
 
@@ -1188,6 +1190,17 @@ export function PipModule({ send, productionId }: { send: SendFn; productionId: 
         setInputSlots(slots)
         setPgmResolution(parsePgmResolution(production.values?.pgm_resolution))
         setInputResolutions(production.inputResolutions)
+
+        // Fetch PiP state from Strom and populate the store
+        const flowId = production.stromFlowId
+        const numPips = production.values?.num_pips ? parseInt(String(production.values.num_pips), 10) : 0
+        if (flowId && numPips > 0) {
+          const mixerId = await fetchMixerBlockId(flowId)
+          if (mixerId) {
+            const pipConfigs = await fetchPipState(flowId, mixerId, numPips)
+            usePipStore.getState().applyPipState(null, null, pipConfigs)
+          }
+        }
       } catch {
         // production not found / server unreachable — leave the module empty
       }
