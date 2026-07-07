@@ -14,10 +14,13 @@ export type OutboundMessage =
   | { type: 'AUDIO_SET'; elementId: string; property: 'volume' | 'mute'; value: unknown; ramp_ms?: number }
   | { type: 'AFV_SET'; mixerInput: string; enabled: boolean }
   | { type: 'PFL_SET'; elementId: string; enabled: boolean; volume?: number }
-  | { type: 'AUX_SEND_SET'; elementId: string; auxBus: number; level: number; enabled: boolean }
+  | { type: 'AFL_SET'; elementId: string; enabled: boolean }
+  | { type: 'AUX_SEND_SET'; elementId: string; auxBus: number; level: number; enabled: boolean; pre?: boolean }
   | { type: 'AUX_MASTER_SET'; auxBus: number; volume: number; muted: boolean }
   | { type: 'GRP_SEND_SET'; elementId: string; grpBus: number; level: number; enabled: boolean }
   | { type: 'GRP_MASTER_SET'; grpBus: number; volume: number; muted: boolean }
+  | { type: 'MONITOR_SET'; volume: number; muted: boolean }
+  | { type: 'LOUDNESS_RESET' }
   | { type: 'SOURCE_OFFSET_SET'; mixerInput: string; offsetMs: number }
   | { type: 'SOURCE_AUDIO_OFFSET_SET'; mixerInput: string; offsetMs: number }
   | { type: 'RECORDER_SPLIT'; outputId: string }

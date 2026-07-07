@@ -7,6 +7,7 @@ import '@/modules/multiviewer'
 import '@/modules/pgm'
 import '@/modules/timer'
 import '@/modules/controller'
+import '@/modules/audio'
 
 export function StudioShell({ productionId: initialProductionId }: { productionId: string | null }) {
   const [productionId, setProductionId] = useState<string | null>(initialProductionId)
