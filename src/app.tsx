@@ -1,9 +1,17 @@
-import { createBrowserRouter, Navigate } from 'react-router'
+import { createBrowserRouter, Navigate, useSearchParams } from 'react-router'
 import { Shell } from '@/components/layout/Shell'
 import { SetupPage } from '@/pages/SetupPage'
 import { ProductionsPage } from '@/pages/ProductionsPage'
 import { StudioPage } from '@/pages/StudioPage'
 import { PanePage } from '@/pages/PanePage'
+
+function StudioPageWrapper() {
+  const [searchParams] = useSearchParams()
+  const productionId = searchParams.get('production')
+  return productionId
+    ? <StudioPage productionId={productionId} />
+    : <Navigate to="/productions" replace />
+}
 import '@/modules/multiviewer'
 import '@/modules/pgm'
 import '@/modules/timer'
@@ -36,6 +44,6 @@ export const router = createBrowserRouter([
   {
     // Studio (production view) — modular system, full screen, no Shell
     path: '/studio',
-    element: <StudioPage />,
+    element: <StudioPageWrapper />,
   },
 ])
