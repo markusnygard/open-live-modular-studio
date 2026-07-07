@@ -9,7 +9,7 @@ pnpm install
 pnpm exec vite dev
 ```
 
-Open http://localhost:5173/studio-modular
+Open http://localhost:3200/studio-modular
 
 ## Architecture
 
@@ -39,6 +39,6 @@ Add to your docker-compose.yml:
     volumes:
       - ./modular-studio:/app
     ports:
-      - "3001:5173"
-    command: sh -c "corepack enable && pnpm install && pnpm exec vite --host 0.0.0.0 --port 5173"
+      - "3200:3200"
+    command: sh -c "corepack enable && pnpm install && pnpm exec vite --host 0.0.0.0 --port 3200"
 ```

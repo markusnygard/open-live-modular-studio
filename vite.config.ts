@@ -17,6 +17,7 @@ export default defineConfig({
     },
   },
   server: {
+    port: 3200,
     proxy: {
       '/api': OPEN_LIVE_URL,
       '/ws': { target: OPEN_LIVE_URL, ws: true },
