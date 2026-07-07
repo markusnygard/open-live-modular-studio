@@ -1,4 +1,4 @@
-import { useEffect, type FC } from 'react'
+import { useEffect, useRef, type FC } from 'react'
 import { WsProvider, useWs } from '@/studio/WsProvider'
 import { eventBus } from '@/shared/event-bus'
 import { ModuleHeader } from '@/studio/ModuleHeader'
@@ -17,6 +17,7 @@ import { useProductionStore } from '@/store/production.store'
 import { useProductionsStore } from '@/store/productions.store'
 import { useSourcesStore } from '@/store/sources.store'
 import { useOutputsStore } from '@/store/outputs.store'
+import { useViewerStore } from '@/store/viewer.store'
 import type { OutputType } from '@/lib/api'
 
 // Ensure every module registers itself in the shared registry regardless of
@@ -109,6 +110,10 @@ function StudioPageInner({ productionId }: { productionId: string }) {
 
   const mvVisible          = vis('multiviewer')
   const pgmVisible         = vis('pgm')
+  const isMuted            = useViewerStore(s => s.isMuted)
+  const setMuted           = useViewerStore(s => s.setMuted)
+  const mvRef              = useRef<HTMLDivElement>(null)
+  const pgmRef             = useRef<HTMLDivElement>(null)
   const controllerVisible  = vis('controller')
   const audioVisible       = vis('audio')
   const looksVisible       = vis('looks')
@@ -183,20 +188,56 @@ function StudioPageInner({ productionId }: { productionId: string }) {
         {(mvVisible || pgmVisible) && (
           <div className="flex-1 min-h-0 px-4 pt-2 pb-2 overflow-hidden flex flex-row items-stretch gap-6">
             {mvVisible && (
-              <div className="flex-1 min-w-0 min-h-0 flex flex-col">
+              <div className="flex-1 min-w-0 min-h-0 flex flex-col" ref={mvRef}>
                 <ModuleHeader icon={getModuleById('multiviewer')?.icon ?? <></>} label="Multiviewer"
                   onHide={() => setModuleVisible('multiviewer', false)}
-                  onPopOut={() => window.open(`/pane/multiviewer?production=${productionId}`, '_blank', 'noopener')} />
+                  onPopOut={() => window.open(`/pane/multiviewer?production=${productionId}`, '_blank', 'noopener')}
+                  fullscreenRef={mvRef}
+                  tooltip="Monitor all cameras in a grid. Use audio track selector to switch between PGM, monitor, and AUX mixes.">
+                  <button title={isMuted ? 'Unmute monitor' : 'Mute monitor'}
+                    onClick={() => setMuted(!isMuted)}
+                    className="cursor-pointer hover:text-orange-500 transition-colors">
+                    {isMuted ? (
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                        <line x1="23" y1="9" x2="17" y2="15" /><line x1="17" y1="9" x2="23" y2="15" />
+                      </svg>
+                    ) : (
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                        <path d="M19.07 4.93a10 10 0 0 1 0 14.14" /><path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                      </svg>
+                    )}
+                  </button>
+                </ModuleHeader>
                 <div className="flex-1 min-h-0 overflow-hidden">
                   <ModuleRenderer moduleId="multiviewer" send={send} productionId={productionId} />
                 </div>
               </div>
             )}
             {pgmVisible && (
-              <div className="flex-1 min-w-0 min-h-0 flex flex-col">
+              <div className="flex-1 min-w-0 min-h-0 flex flex-col" ref={pgmRef}>
                 <ModuleHeader icon={getModuleById('pgm')?.icon ?? <></>} label="PGM"
                   onHide={() => setModuleVisible('pgm', false)}
-                  onPopOut={() => window.open(`/pane/pgm?production=${productionId}`, '_blank', 'noopener')} />
+                  onPopOut={() => window.open(`/pane/pgm?production=${productionId}`, '_blank', 'noopener')}
+                  fullscreenRef={pgmRef}
+                  tooltip="Live programme output — exactly what is going to air. Monitor PGM, monitor bus, or AUX mixes.">
+                  <button title={isMuted ? 'Unmute monitor' : 'Mute monitor'}
+                    onClick={() => setMuted(!isMuted)}
+                    className="cursor-pointer hover:text-orange-500 transition-colors">
+                    {isMuted ? (
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                        <line x1="23" y1="9" x2="17" y2="15" /><line x1="17" y1="9" x2="23" y2="15" />
+                      </svg>
+                    ) : (
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
+                        <path d="M19.07 4.93a10 10 0 0 1 0 14.14" /><path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
+                      </svg>
+                    )}
+                  </button>
+                </ModuleHeader>
                 <div className="flex-1 min-h-0 overflow-hidden">
                   <ModuleRenderer moduleId="pgm" send={send} productionId={productionId} />
                 </div>
