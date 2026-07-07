@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { Tooltip } from '@/components/ui/Tooltip'
 
 // ── Icons ──────────────────────────────────────────────────────────────────────
 
@@ -147,9 +148,9 @@ export function ModuleHeader({
 
       {/* Info tooltip */}
       {tooltip && (
-        <span title={tooltip}>
+        <Tooltip content={<span className="text-[11px] text-zinc-300 max-w-[260px] leading-relaxed">{tooltip}</span>}>
           <InfoCircle />
-        </span>
+        </Tooltip>
       )}
 
       {/* Close / hide */}

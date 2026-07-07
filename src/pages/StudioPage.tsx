@@ -193,7 +193,7 @@ function StudioPageInner({ productionId }: { productionId: string }) {
                   onHide={() => setModuleVisible('multiviewer', false)}
                   onPopOut={() => window.open(`/pane/multiviewer?production=${productionId}`, '_blank', 'noopener')}
                   fullscreenRef={mvRef}
-                  tooltip="Monitor all cameras in a grid. Use audio track selector to switch between PGM, monitor, and AUX mixes.">
+                  tooltip="Shows all camera sources in a grid. Use the audio track selector to switch between PGM, monitor, and AUX mixes. Click the speaker to toggle monitor audio. Pop out into a separate window for a dedicated confidence monitor. The position of the multiviewer relative to PGM can be swapped in the production config.">
                   <button title={isMuted ? 'Unmute monitor' : 'Mute monitor'}
                     onClick={() => setMuted(!isMuted)}
                     className="cursor-pointer hover:text-orange-500 transition-colors">
@@ -221,7 +221,7 @@ function StudioPageInner({ productionId }: { productionId: string }) {
                   onHide={() => setModuleVisible('pgm', false)}
                   onPopOut={() => window.open(`/pane/pgm?production=${productionId}`, '_blank', 'noopener')}
                   fullscreenRef={pgmRef}
-                  tooltip="Live programme output — exactly what is going to air. Monitor PGM, monitor bus, or AUX mixes.">
+                  tooltip="Live programme output — exactly what is going to air. Use the audio track selector to monitor PGM, monitor bus, or AUX. Pop out into a separate window for a dedicated programme monitor.">
                   <button title={isMuted ? 'Unmute monitor' : 'Mute monitor'}
                     onClick={() => setMuted(!isMuted)}
                     className="cursor-pointer hover:text-orange-500 transition-colors">
@@ -254,7 +254,7 @@ function StudioPageInner({ productionId }: { productionId: string }) {
                 <ModuleHeader icon={getModuleById('controller')?.icon ?? <></>} label="Controller"
                   onHide={() => setModuleVisible('controller', false)}
                   onPopOut={() => window.open(`/pane/controller?production=${productionId}`, '_blank', 'noopener')}
-                  tooltip="CUT/AUTO/FTB — Space=Cut, Enter=Auto, F=FTB" />
+                  tooltip="Vision mixer controls. Click a source to set it on preview, then press Cut or Auto to take it to programme. Toggle FTB to fade to black. Use DSK to layer graphics over programme. Press the gear icon to set transition types and source timing offsets." />
                 <div className="flex-1 min-h-0 overflow-hidden">
                   <ModuleRenderer moduleId="controller" send={send} productionId={productionId} />
                 </div>
@@ -265,6 +265,7 @@ function StudioPageInner({ productionId }: { productionId: string }) {
             {looksVisible && (
               <div className={`flex flex-col shrink-0 h-full ${controllerVisible ? 'pr-3' : 'px-3'}`} style={{ width: 280 }}>
                 <ModuleHeader icon={getModuleById('looks')?.icon ?? <></>} label="Looks"
+                  tooltip="Per-source GPU shader effects. Select a source tab, then pick an effect type and adjust its parameters. Changes apply live to the programme output. Requires a GPU node — a note is shown if unavailable."
                   onHide={() => setModuleVisible('looks', false)} />
                 <div className="flex-1 min-h-0 overflow-hidden">
                   <ModuleRenderer moduleId="looks" send={send} productionId={productionId} />
@@ -274,6 +275,7 @@ function StudioPageInner({ productionId }: { productionId: string }) {
             {pipVisible && numPips > 0 && (
               <div className={`${controllerVisible || looksVisible ? 'pr-3' : 'px-3'} flex flex-col shrink-0 h-full overflow-hidden`} style={{ width: 540 }}>
                 <ModuleHeader icon={getModuleById('pip')?.icon ?? <></>} label="PiP Editor"
+                  tooltip="Picture-in-Picture editor. Select a PiP slot, then drag zones on the canvas to position them. Assign sources to zones by clicking the source chips. Use Crop / Zoom to pan and zoom individual sources within a zone. Set a border colour and width per zone. Click Take to bring the PiP to programme."
                   onHide={() => setModuleVisible('pip', false)}
                   onPopOut={() => window.open(`/pane/pip?production=${productionId}`, '_blank', 'noopener')} />
                 <div className="flex-1 min-h-0 overflow-hidden">
@@ -284,6 +286,7 @@ function StudioPageInner({ productionId }: { productionId: string }) {
             {mediaplayerVisible && hasMediaPlayers && (
               <div className={`${controllerVisible || looksVisible ? 'pr-3' : 'px-3'} flex flex-col shrink-0 h-full overflow-hidden`} style={{ width: 360 }}>
                 <ModuleHeader icon={getModuleById('mediaplayer')?.icon ?? <></>} label="Media Player"
+                  tooltip="Media player. Browse and select clips from the media folder to build a playlist. Use transport controls to play, pause, stop and skip clips. The video and audio output is routed to the vision mixer and audio mixer as a regular source."
                   onHide={() => setModuleVisible('mediaplayer', false)}
                   onPopOut={() => window.open(`/pane/mediaplayer?production=${productionId}`, '_blank', 'noopener')} />
                 <div className="flex-1 min-h-0 overflow-hidden">
@@ -296,7 +299,7 @@ function StudioPageInner({ productionId }: { productionId: string }) {
                 <ModuleHeader icon={getModuleById('audio')?.icon ?? <></>} label="Audio"
                   onHide={() => setModuleVisible('audio', false)}
                   onPopOut={() => window.open(`/pane/audio?production=${productionId}`, '_blank', 'noopener')}
-                  tooltip="Channel strips, VU/EBU meters, EQ/comp/gate, AFV" />
+                  tooltip="Audio mixer. Drag faders or click the level to adjust channel volume. Toggle On/Off to mute a channel. Use AUX sends to route audio to commentary or recording feeds. Group channels together to control them as one. Adjust the monitor level with the master fader. Press the gear icon to set AFV ramp times." />
                 <div className="flex-1 min-h-0 overflow-hidden">
                   <ModuleRenderer moduleId="audio" send={send} productionId={productionId} />
                 </div>
