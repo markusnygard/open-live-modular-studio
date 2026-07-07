@@ -20,6 +20,7 @@ export function useControllerMessages(): void {
   const applySourceAudioOffset = useControllerStore((s) => s.applySourceAudioOffset)
   const resetSourceOffsets = useControllerStore((s) => s.resetSourceOffsets)
   const setDeactivatedExternally = useControllerStore((s) => s.setDeactivatedExternally)
+  const applyPipState = useControllerStore((s) => s.applyPipState)
 
   useEffect(() => {
     const offs: Array<() => void> = []
@@ -62,6 +63,14 @@ export function useControllerMessages(): void {
       setDeactivatedExternally(true)
     }))
 
+    offs.push(onMessage('PIP_STATE', (msg: Record<string, unknown>) => {
+      applyPipState(
+        typeof msg['pgmPip'] === 'number' ? (msg['pgmPip'] as number) : null,
+        typeof msg['pvwPip'] === 'number' ? (msg['pvwPip'] as number) : null,
+        Array.isArray(msg['pips']) ? (msg['pips'] as any[]) : [],
+      )
+    }))
+
     return () => { offs.forEach((off) => off()) }
   }, [
     onMessage,
@@ -73,5 +82,6 @@ export function useControllerMessages(): void {
     applySourceAudioOffset,
     resetSourceOffsets,
     setDeactivatedExternally,
+    applyPipState,
   ])
 }

@@ -7,7 +7,6 @@ import { useControllerMessages } from './controller.messages'
 import { SourceBus } from './SourceBus'
 import { TransitionPanel } from './TransitionPanel'
 import { MacroBar } from './MacroBar'
-import { fetchPipState, fetchMixerBlockId } from '@/modules/pip/pip.api'
 
 const CONTROLLER_OPTIONS_KEY = 'ol-studio-controller-options'
 
@@ -99,17 +98,6 @@ export function ControllerModule({ send, productionId }: { send: SendFn; product
 
         setProductionData({ sources: sourceAssignments, graphicAssignments, values: production.values ?? {} })
         setMacros(controllerMacros)
-
-        // Load PiP state from Strom for the source bus PiP buttons
-        const flowId = production.stromFlowId
-        const numPips = production.values?.num_pips !== undefined ? parseInt(String(production.values.num_pips), 10) : 0
-        if (flowId && numPips > 0) {
-          const mixerId = await fetchMixerBlockId(flowId)
-          if (mixerId) {
-            const pipConfigs = await fetchPipState(flowId, mixerId, numPips)
-            useControllerStore.getState().applyPipState(null, null, pipConfigs)
-          }
-        }
       } catch {
         // production not found / server unreachable — leave the module in its empty state
       }

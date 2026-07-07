@@ -9,8 +9,6 @@ import { cn } from '@/shared/cn'
 import type { PipConfig, PipTransforms, SourceCrop, ZoneBorder } from '@/shared/types'
 import { usePipStore } from './pip.store'
 import { usePipMessages } from './pip.messages'
-import { fetchPipState, fetchMixerBlockId } from './pip.api'
-import { eventBus } from '@/shared/event-bus'
 
 // ── Minimal tooltip — native title-based hover (replaces the app UI Tooltip) ────
 function Tooltip({ content, children }: { content: string; children: ReactNode }) {
@@ -1166,13 +1164,6 @@ export function PipModule({ send, productionId }: { send: SendFn; productionId: 
   const [inputSlots, setInputSlots] = useState<Array<{ idx: number; name: string }>>([])
   const [pgmResolution, setPgmResolution] = useState<{ w: number; h: number }>({ w: 1920, h: 1080 })
   const [inputResolutions, setInputResolutions] = useState<Array<{ width: number; height: number } | null> | undefined>(undefined)
-  const [refreshKey, setRefreshKey] = useState(0)
-
-  // Re-fetch PiP state when production is (re)activated
-  useEffect(() => {
-    const off = eventBus.on('PRODUCTION_ACTIVATED', () => setRefreshKey(k => k + 1))
-    return off
-  }, [])
 
   const VIRTUAL_SOURCE_NAMES: Record<string, string> = useMemo(() => ({ '__test1__': 'PINWHEEL', '__test2__': 'COLORS' }), [])
 
@@ -1198,24 +1189,13 @@ export function PipModule({ send, productionId }: { send: SendFn; productionId: 
         setInputSlots(slots)
         setPgmResolution(parsePgmResolution(production.values?.pgm_resolution))
         setInputResolutions(production.inputResolutions)
-
-        // Fetch PiP state from Strom and populate the store
-        const flowId = production.stromFlowId
-        const numPips = production.values?.num_pips ? parseInt(String(production.values.num_pips), 10) : 0
-        if (flowId && numPips > 0) {
-          const mixerId = await fetchMixerBlockId(flowId)
-          if (mixerId) {
-            const pipConfigs = await fetchPipState(flowId, mixerId, numPips)
-            usePipStore.getState().applyPipState(null, null, pipConfigs)
-          }
-        }
       } catch {
         // production not found / server unreachable — leave the module empty
       }
     })()
 
     return () => { cancelled = true }
-  }, [productionId, VIRTUAL_SOURCE_NAMES, refreshKey])
+  }, [productionId, VIRTUAL_SOURCE_NAMES])
 
   const handleApplyPip = useCallback((pip: number, config: PipConfig) => {
     send({ type: 'SET_PIP', pip, bg: config.bg, zones: config.zones, transforms: config.transforms })
