@@ -7,6 +7,7 @@ import { useControllerMessages } from './controller.messages'
 import { SourceBus } from './SourceBus'
 import { TransitionPanel } from './TransitionPanel'
 import { MacroBar } from './MacroBar'
+import { fetchPipState, fetchMixerBlockId } from '@/modules/pip/pip.api'
 
 const CONTROLLER_OPTIONS_KEY = 'ol-studio-controller-options'
 
@@ -16,6 +17,7 @@ interface RawProduction {
   sources?: Array<{ sourceId: string; mixerInput: string }>
   graphicAssignments?: Array<{ graphicId: string; dskInput: string }>
   values?: Record<string, string | number | boolean>
+  stromFlowId?: string
 }
 interface RawSource { id: string; name: string }
 interface RawGraphic { id: string; name: string }
@@ -97,6 +99,17 @@ export function ControllerModule({ send, productionId }: { send: SendFn; product
 
         setProductionData({ sources: sourceAssignments, graphicAssignments, values: production.values ?? {} })
         setMacros(controllerMacros)
+
+        // Load PiP state from Strom for the source bus PiP buttons
+        const flowId = production.stromFlowId
+        const numPips = production.values?.num_pips !== undefined ? parseInt(String(production.values.num_pips), 10) : 0
+        if (flowId && numPips > 0) {
+          const mixerId = await fetchMixerBlockId(flowId)
+          if (mixerId) {
+            const pipConfigs = await fetchPipState(flowId, mixerId, numPips)
+            useControllerStore.getState().applyPipState(null, null, pipConfigs)
+          }
+        }
       } catch {
         // production not found / server unreachable — leave the module in its empty state
       }
@@ -138,6 +151,16 @@ export function ControllerModule({ send, productionId }: { send: SendFn; product
     setPvw(mixerInput)
     cut()
     send({ type: 'CUT', mixerInput })
+  }, [send])
+
+  const doSelectPvwPip = useCallback((pip: number) => {
+    useControllerStore.getState().setPvwPip(pip)
+    send({ type: 'SELECT_PVW_PIP', pip })
+  }, [send])
+
+  const doHotCutPip = useCallback((pip: number) => {
+    useControllerStore.getState().setPvwPip(pip)
+    send({ type: 'TAKE', pip })
   }, [send])
 
   const doDskToggle = useCallback((layer: number, visible: boolean) => {
@@ -183,7 +206,7 @@ export function ControllerModule({ send, productionId }: { send: SendFn; product
       {/* Panels — horizontal: SourceBus | TransitionPanel | MacroBar */}
       <div className="flex flex-1 min-h-0 gap-1 overflow-x-auto">
         <div className="flex-1 min-w-0">
-          <SourceBus onSelectPvw={doSelectPvw} onHotCut={doHotCut} />
+          <SourceBus onSelectPvw={doSelectPvw} onHotCut={doHotCut} onSelectPvwPip={doSelectPvwPip} onHotCutPip={doHotCutPip} />
         </div>
         <TransitionPanel onCut={doCut} onAuto={doAuto} onFtb={doFtb} onSetOvl={doSetOvl} className="shrink-0" />
         <MacroBar onExec={doMacroExec} />
