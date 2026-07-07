@@ -1,4 +1,4 @@
-import { useEffect, useRef, type FC } from 'react'
+import { useEffect, useRef, useState, type FC } from 'react'
 import { WsProvider, useWs } from '@/studio/WsProvider'
 import { eventBus } from '@/shared/event-bus'
 import { ModuleHeader } from '@/studio/ModuleHeader'
@@ -114,6 +114,8 @@ function StudioPageInner({ productionId }: { productionId: string }) {
   const setMuted           = useViewerStore(s => s.setMuted)
   const mvRef              = useRef<HTMLDivElement>(null)
   const pgmRef             = useRef<HTMLDivElement>(null)
+  const [audioOptionsOpen, setAudioOptionsOpen] = useState(false)
+  const [controllerOptionsOpen, setControllerOptionsOpen] = useState(false)
   const controllerVisible  = vis('controller')
   const audioVisible       = vis('audio')
   const looksVisible       = vis('looks')
@@ -254,6 +256,7 @@ function StudioPageInner({ productionId }: { productionId: string }) {
                 <ModuleHeader icon={getModuleById('controller')?.icon ?? <></>} label="Controller"
                   onHide={() => setModuleVisible('controller', false)}
                   onPopOut={() => window.open(`/pane/controller?production=${productionId}`, '_blank', 'noopener')}
+                  onSettings={() => setControllerOptionsOpen(true)}
                   tooltip="Vision mixer controls. Click a source to set it on preview, then press Cut or Auto to take it to programme. Toggle FTB to fade to black. Use DSK to layer graphics over programme. Press the gear icon to set transition types and source timing offsets." />
                 <div className="flex-1 min-h-0 overflow-hidden">
                   <ModuleRenderer moduleId="controller" send={send} productionId={productionId} />
@@ -299,6 +302,7 @@ function StudioPageInner({ productionId }: { productionId: string }) {
                 <ModuleHeader icon={getModuleById('audio')?.icon ?? <></>} label="Audio"
                   onHide={() => setModuleVisible('audio', false)}
                   onPopOut={() => window.open(`/pane/audio?production=${productionId}`, '_blank', 'noopener')}
+                  onSettings={() => setAudioOptionsOpen(true)}
                   tooltip="Audio mixer. Drag faders or click the level to adjust channel volume. Toggle On/Off to mute a channel. Use AUX sends to route audio to commentary or recording feeds. Group channels together to control them as one. Adjust the monitor level with the master fader. Press the gear icon to set AFV ramp times." />
                 <div className="flex-1 min-h-0 overflow-hidden">
                   <ModuleRenderer moduleId="audio" send={send} productionId={productionId} />

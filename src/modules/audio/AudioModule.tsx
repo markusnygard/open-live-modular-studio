@@ -178,12 +178,6 @@ export function AudioModule({ send, productionId }: { send: SendFn; productionId
   return (
     <FaderDimsProvider value={faderDims}>
       <div className="flex flex-col h-full min-w-0">
-        {/* Header */}
-        <div className="flex items-center gap-1.5 text-zinc-500 shrink-0 px-1 py-0.5">
-          <span className="text-[10px] font-semibold uppercase tracking-widest">Audio</span>
-          <span className="text-[9px] text-zinc-600">{inputElements.length} ch</span>
-        </div>
-
         <div
           className="border border-zinc-800 overflow-auto flex items-stretch flex-1 min-h-0"
           style={{ background: '#0d0d0d' }}
