@@ -1,6 +1,7 @@
 import { useEffect, type FC } from 'react'
 import { WsProvider, useWs } from '@/studio/WsProvider'
 import { eventBus } from '@/shared/event-bus'
+import { ModuleHeader } from '@/studio/ModuleHeader'
 import { getModuleById } from '@/studio/ModuleRegistry'
 import { isModuleVisible, setModuleVisible, useVisibilityVersion } from '@/studio/SlotLayout'
 import { PageHeader } from '@/components/layout/PageHeader'
@@ -183,12 +184,22 @@ function StudioPageInner({ productionId }: { productionId: string }) {
           <div className="flex-1 min-h-0 px-4 pt-2 pb-2 overflow-hidden flex flex-row items-stretch gap-6">
             {mvVisible && (
               <div className="flex-1 min-w-0 min-h-0 flex flex-col">
-                <ModuleRenderer moduleId="multiviewer" send={send} productionId={productionId} />
+                <ModuleHeader icon={getModuleById('multiviewer')?.icon ?? <></>} label="Multiviewer"
+                  onHide={() => setModuleVisible('multiviewer', false)}
+                  onPopOut={() => window.open(`/pane/multiviewer?production=${productionId}`, '_blank', 'noopener')} />
+                <div className="flex-1 min-h-0 overflow-hidden">
+                  <ModuleRenderer moduleId="multiviewer" send={send} productionId={productionId} />
+                </div>
               </div>
             )}
             {pgmVisible && (
               <div className="flex-1 min-w-0 min-h-0 flex flex-col">
-                <ModuleRenderer moduleId="pgm" send={send} productionId={productionId} />
+                <ModuleHeader icon={getModuleById('pgm')?.icon ?? <></>} label="PGM"
+                  onHide={() => setModuleVisible('pgm', false)}
+                  onPopOut={() => window.open(`/pane/pgm?production=${productionId}`, '_blank', 'noopener')} />
+                <div className="flex-1 min-h-0 overflow-hidden">
+                  <ModuleRenderer moduleId="pgm" send={send} productionId={productionId} />
+                </div>
               </div>
             )}
           </div>
@@ -199,6 +210,10 @@ function StudioPageInner({ productionId }: { productionId: string }) {
           <div className="flex flex-none pt-2 pb-3 gap-0" style={{ height: 392 }}>
             {controllerVisible && (
               <div className="px-3 flex flex-col gap-2 min-w-0 flex-1 h-full">
+                <ModuleHeader icon={getModuleById('controller')?.icon ?? <></>} label="Controller"
+                  onHide={() => setModuleVisible('controller', false)}
+                  onPopOut={() => window.open(`/pane/controller?production=${productionId}`, '_blank', 'noopener')}
+                  tooltip="CUT/AUTO/FTB — Space=Cut, Enter=Auto, F=FTB" />
                 <div className="flex-1 min-h-0 overflow-hidden">
                   <ModuleRenderer moduleId="controller" send={send} productionId={productionId} />
                 </div>
@@ -208,22 +223,42 @@ function StudioPageInner({ productionId }: { productionId: string }) {
             )}
             {looksVisible && (
               <div className={`flex flex-col shrink-0 h-full ${controllerVisible ? 'pr-3' : 'px-3'}`} style={{ width: 280 }}>
-                <ModuleRenderer moduleId="looks" send={send} productionId={productionId} />
+                <ModuleHeader icon={getModuleById('looks')?.icon ?? <></>} label="Looks"
+                  onHide={() => setModuleVisible('looks', false)} />
+                <div className="flex-1 min-h-0 overflow-hidden">
+                  <ModuleRenderer moduleId="looks" send={send} productionId={productionId} />
+                </div>
               </div>
             )}
             {pipVisible && numPips > 0 && (
               <div className={`${controllerVisible || looksVisible ? 'pr-3' : 'px-3'} flex flex-col shrink-0 h-full overflow-hidden`} style={{ width: 540 }}>
-                <ModuleRenderer moduleId="pip" send={send} productionId={productionId} />
+                <ModuleHeader icon={getModuleById('pip')?.icon ?? <></>} label="PiP Editor"
+                  onHide={() => setModuleVisible('pip', false)}
+                  onPopOut={() => window.open(`/pane/pip?production=${productionId}`, '_blank', 'noopener')} />
+                <div className="flex-1 min-h-0 overflow-hidden">
+                  <ModuleRenderer moduleId="pip" send={send} productionId={productionId} />
+                </div>
               </div>
             )}
             {mediaplayerVisible && hasMediaPlayers && (
               <div className={`${controllerVisible || looksVisible ? 'pr-3' : 'px-3'} flex flex-col shrink-0 h-full overflow-hidden`} style={{ width: 360 }}>
-                <ModuleRenderer moduleId="mediaplayer" send={send} productionId={productionId} />
+                <ModuleHeader icon={getModuleById('mediaplayer')?.icon ?? <></>} label="Media Player"
+                  onHide={() => setModuleVisible('mediaplayer', false)}
+                  onPopOut={() => window.open(`/pane/mediaplayer?production=${productionId}`, '_blank', 'noopener')} />
+                <div className="flex-1 min-h-0 overflow-hidden">
+                  <ModuleRenderer moduleId="mediaplayer" send={send} productionId={productionId} />
+                </div>
               </div>
             )}
             {audioVisible && (
               <div className={`flex flex-col flex-1 min-w-0 h-full ${controllerVisible || looksVisible ? 'pr-3' : 'px-3'}`}>
-                <ModuleRenderer moduleId="audio" send={send} productionId={productionId} />
+                <ModuleHeader icon={getModuleById('audio')?.icon ?? <></>} label="Audio"
+                  onHide={() => setModuleVisible('audio', false)}
+                  onPopOut={() => window.open(`/pane/audio?production=${productionId}`, '_blank', 'noopener')}
+                  tooltip="Channel strips, VU/EBU meters, EQ/comp/gate, AFV" />
+                <div className="flex-1 min-h-0 overflow-hidden">
+                  <ModuleRenderer moduleId="audio" send={send} productionId={productionId} />
+                </div>
               </div>
             )}
           </div>
