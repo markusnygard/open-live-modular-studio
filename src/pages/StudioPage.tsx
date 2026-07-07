@@ -21,6 +21,7 @@ import { useProductionsStore } from '@/store/productions.store'
 import { useSourcesStore } from '@/store/sources.store'
 import { useOutputsStore } from '@/store/outputs.store'
 import { useViewerStore } from '@/store/viewer.store'
+import { loadMediaPlayerState, saveMediaPlayerState } from '@/modules/mediaplayer/mediaplayer.persistence'
 import type { OutputType } from '@/lib/api'
 
 // Ensure every module registers itself in the shared registry regardless of
@@ -77,6 +78,11 @@ function StudioPageInner({ productionId }: { productionId: string }) {
   const sources = useSourcesStore((s) => s.sources)
   const outputs = useOutputsStore((s) => s.outputs)
   const isOnAir = useIsOnAir()
+
+  // Load persisted module state when production is activated
+  useEffect(() => {
+    void loadMediaPlayerState(productionId)
+  }, [productionId])
 
   const numPips = activeProduction?.values?.num_pips !== undefined
     ? parseInt(String(activeProduction.values.num_pips), 10)
@@ -304,7 +310,19 @@ function StudioPageInner({ productionId }: { productionId: string }) {
                 <ModuleHeader icon={getModuleById('mediaplayer')?.icon ?? <></>} label="Media Player"
                   tooltip="Media player. Browse and select clips from the media folder to build a playlist. Use transport controls to play, pause, stop and skip clips. The video and audio output is routed to the vision mixer and audio mixer as a regular source."
                   onHide={() => setModuleVisible('mediaplayer', false)}
-                  onPopOut={() => window.open(`/pane/mediaplayer?production=${productionId}`, '_blank', 'noopener')} />
+                  onPopOut={() => window.open(`/pane/mediaplayer?production=${productionId}`, '_blank', 'noopener')}>
+                  {/* Save playlist button */}
+                  <button title="Save playlist"
+                    onClick={() => saveMediaPlayerState(productionId)}
+                    className="cursor-pointer hover:text-green-400 transition-colors">
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M13 2H3L2 5v9l1 1h10l1-1V5l-1-3z" />
+                      <line x1="8" y1="2" x2="8" y2="12" />
+                      <line x1="5" y1="9" x2="8" y2="12" />
+                      <line x1="11" y1="9" x2="8" y2="12" />
+                    </svg>
+                  </button>
+                </ModuleHeader>
                 <div className="flex-1 min-h-0 overflow-hidden">
                   <ModuleRenderer moduleId="mediaplayer" send={send} productionId={productionId} />
                 </div>
