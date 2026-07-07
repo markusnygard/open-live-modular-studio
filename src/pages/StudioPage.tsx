@@ -7,6 +7,7 @@ import { isModuleVisible, setModuleVisible, useVisibilityVersion } from '@/studi
 import { PageHeader } from '@/components/layout/PageHeader'
 import { TimerBar } from '@/studio/TimerBar'
 import { DskPanel } from '@/studio/DskPanel'
+import { Modal } from '@/components/ui/Modal'
 import { useIsOnAir } from '@/studio/useIsOnAir'
 import type { SendFn } from '@/studio/types'
 import {
@@ -116,6 +117,16 @@ function StudioPageInner({ productionId }: { productionId: string }) {
   const pgmRef             = useRef<HTMLDivElement>(null)
   const [audioOptionsOpen, setAudioOptionsOpen] = useState(false)
   const [controllerOptionsOpen, setControllerOptionsOpen] = useState(false)
+  const afvRampUpMs   = useProductionStore((s) => s.afvRampUpMs)
+  const afvRampDownMs = useProductionStore((s) => s.afvRampDownMs)
+  const [rampUpMsText, setRampUpMsText] = useState(() => String(afvRampUpMs))
+  const [rampDownMsText, setRampDownMsText] = useState(() => String(afvRampDownMs))
+  useEffect(() => {
+    if (audioOptionsOpen) {
+      setRampUpMsText(String(afvRampUpMs))
+      setRampDownMsText(String(afvRampDownMs))
+    }
+  }, [audioOptionsOpen, afvRampUpMs, afvRampDownMs])
   const controllerVisible  = vis('controller')
   const audioVisible       = vis('audio')
   const looksVisible       = vis('looks')
@@ -312,6 +323,44 @@ function StudioPageInner({ productionId }: { productionId: string }) {
           </div>
         )}
       </div>
+
+      {/* ── Audio options modal ──────────────────────────────────────────────── */}
+      <Modal open={audioOptionsOpen} title="Audio Options" onClose={() => setAudioOptionsOpen(false)} className="max-w-xs">
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-3">
+            <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-500 shrink-0" style={{ width: 80 }}>Ramp Up</span>
+            <div className="flex items-center gap-1.5 border border-zinc-700 rounded bg-zinc-900 px-2 py-1">
+              <input type="number" min={0} max={5000} step={50} value={rampUpMsText}
+                onChange={(e) => { setRampUpMsText(e.target.value) }}
+                onBlur={() => {
+                  const parsed = parseInt(rampUpMsText, 10)
+                  const clamped = isNaN(parsed) ? afvRampUpMs : Math.max(0, Math.min(5000, parsed))
+                  setRampUpMsText(String(clamped))
+                  const down = parseInt(rampDownMsText, 10)
+                  send({ type: 'AFV_RAMP_SET', rampUpMs: clamped, rampDownMs: isNaN(down) ? afvRampDownMs : Math.max(0, Math.min(5000, down)) })
+                }}
+                className="w-16 bg-transparent border-none text-[9px] font-bold text-orange-500 text-right focus:outline-none" />
+              <span className="text-[9px] font-bold text-zinc-600 shrink-0">ms</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="text-[9px] font-bold uppercase tracking-widest text-zinc-500 shrink-0" style={{ width: 80 }}>Ramp Down</span>
+            <div className="flex items-center gap-1.5 border border-zinc-700 rounded bg-zinc-900 px-2 py-1">
+              <input type="number" min={0} max={5000} step={50} value={rampDownMsText}
+                onChange={(e) => { setRampDownMsText(e.target.value) }}
+                onBlur={() => {
+                  const parsed = parseInt(rampDownMsText, 10)
+                  const clamped = isNaN(parsed) ? afvRampDownMs : Math.max(0, Math.min(5000, parsed))
+                  setRampDownMsText(String(clamped))
+                  const up = parseInt(rampUpMsText, 10)
+                  send({ type: 'AFV_RAMP_SET', rampUpMs: isNaN(up) ? afvRampUpMs : Math.max(0, Math.min(5000, up)), rampDownMs: clamped })
+                }}
+                className="w-16 bg-transparent border-none text-[9px] font-bold text-orange-500 text-right focus:outline-none" />
+              <span className="text-[9px] font-bold text-zinc-600 shrink-0">ms</span>
+            </div>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

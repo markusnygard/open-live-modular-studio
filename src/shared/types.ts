@@ -69,6 +69,7 @@ export type OutboundMessage =
   | { type: 'MACRO_EXEC'; macroId: string }
   | { type: 'AUDIO_SET'; elementId: string; property: 'volume' | 'mute'; value: unknown; ramp_ms?: number }
   | { type: 'AFV_SET'; mixerInput: string; enabled: boolean }
+  | { type: 'AFV_RAMP_SET'; rampUpMs: number; rampDownMs: number }
   | { type: 'PFL_SET'; elementId: string; enabled: boolean; volume?: number }
   | { type: 'AFL_SET'; elementId: string; enabled: boolean }
   | { type: 'AUX_SEND_SET'; elementId: string; auxBus: number; level: number; enabled: boolean; pre?: boolean }
