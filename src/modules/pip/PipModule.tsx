@@ -465,8 +465,10 @@ interface PipEditorProps {
 
 function PipEditor({ productionId, onApply, className, inputSlots, pgmResolution, inputResolutions, numPips }: PipEditorProps) {
   const pips = usePipStore((s) => s.pips)
-  // Pad pips array to match numPips (Strom may send fewer entries than configured)
-  const paddedPips = pips.length >= numPips ? pips : [...pips, ...Array.from({ length: numPips - pips.length }, () => ({ bg: null as number | null, zones: [] as any[], transforms: {} as Record<number, any> }))]
+  // Ensure pips array matches configured numPips (slice or pad as needed)
+  const paddedPips = Array.from({ length: numPips }, (_, i) =>
+    i < pips.length ? pips[i] : ({ bg: null as number | null, zones: [] as any[], transforms: {} as Record<number, any> })
+  )
 
   const [editingPipIdx, setEditingPipIdx] = useState(0)
   const [draft, setDraft] = useState<PipConfig>({ bg: null, zones: [], transforms: {} })

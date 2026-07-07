@@ -147,8 +147,11 @@ export function ControllerModule({ send, productionId }: { send: SendFn; product
   }, [send])
 
   const doHotCutPip = useCallback((pip: number) => {
-    useControllerStore.getState().setPvwPip(pip)
-    send({ type: 'TAKE', pip })
+    const store = useControllerStore.getState()
+    store.setPvwPip(pip)
+    send({ type: 'SELECT_PVW_PIP', pip })
+    // Regular TAKE — Strom's transition engine handles PiP swap automatically
+    send({ type: 'TAKE' })
   }, [send])
 
   const doDskToggle = useCallback((layer: number, visible: boolean) => {
