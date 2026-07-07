@@ -4,11 +4,12 @@ import { ConnectionStatus } from '@/components/ui/ConnectionStatus'
 
 function OpenLiveLogo() {
   return (
-    <div className="flex items-center gap-2" aria-label="Open Live">
-      <div className="w-3 h-3 bg-orange-500 shrink-0" />
+    <div className="flex items-center gap-1" aria-label="Open Live Modular">
+      <div className="w-2.5 h-2.5 bg-orange-500 shrink-0" />
       <div className="flex flex-col" style={{ lineHeight: 1.1 }}>
-        <span className="text-[10px] font-bold tracking-[0.2em] text-orange-500">OPEN</span>
-        <span className="text-[10px] font-bold tracking-[0.2em] text-orange-500">LIVE</span>
+        <span className="text-[8px] font-bold tracking-[0.15em] text-orange-500">OPEN</span>
+        <span className="text-[8px] font-bold tracking-[0.15em] text-orange-500">LIVE</span>
+        <span className="text-[8px] font-bold tracking-[0.15em] text-orange-500">MODULAR</span>
       </div>
     </div>
   )
