@@ -12,6 +12,11 @@ import '@/modules/audio'
 import '@/modules/looks'
 import '@/modules/pip'
 import '@/modules/mediaplayer'
+import '@/modules/outputs/srt-stream'
+import '@/modules/outputs/efp-stream'
+import '@/modules/outputs/recording'
+import '@/modules/outputs/ndi-output'
+import '@/modules/outputs/sdi-output'
 
 export function StudioShell(_props: { productionId: string | null }) {
   const { productions, activeId, fetch, setActive } = useProductionsStore()
