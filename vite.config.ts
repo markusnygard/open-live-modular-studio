@@ -22,7 +22,7 @@ export default defineConfig({
     proxy: {
       '/api': OPEN_LIVE_URL,
       '/ws': { target: OPEN_LIVE_URL, ws: true },
-      '/strom': { target: STROM_URL, rewrite: (path) => path.replace(/^\/strom/, '/api') },
+      '/strom': { target: STROM_URL, changeOrigin: true, rewrite: (path) => path.replace(/^\/strom/, '/api') },
     },
   },
 })
