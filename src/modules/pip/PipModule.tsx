@@ -465,6 +465,8 @@ interface PipEditorProps {
 
 function PipEditor({ productionId, onApply, className, inputSlots, pgmResolution, inputResolutions, numPips }: PipEditorProps) {
   const pips = usePipStore((s) => s.pips)
+  // Pad pips array to match numPips (Strom may send fewer entries than configured)
+  const paddedPips = pips.length >= numPips ? pips : [...pips, ...Array.from({ length: numPips - pips.length }, () => ({ bg: null as number | null, zones: [] as any[], transforms: {} as Record<number, any> }))]
 
   const [editingPipIdx, setEditingPipIdx] = useState(0)
   const [draft, setDraft] = useState<PipConfig>({ bg: null, zones: [], transforms: {} })
@@ -713,9 +715,6 @@ function PipEditor({ productionId, onApply, className, inputSlots, pgmResolution
       </div>
     )
   }
-
-  // Pad pips array to match numPips (Strom may send fewer entries than configured)
-  const paddedPips = pips.length >= numPips ? pips : [...pips, ...Array.from({ length: numPips - pips.length }, () => ({ bg: null as number | null, zones: [] as any[], transforms: {} as Record<number, any> }))]
 
   const flushPending = () => {
     if (isDirtyRef.current) {
