@@ -460,9 +460,10 @@ interface PipEditorProps {
   inputSlots: Array<{ idx: number; name: string }>
   pgmResolution: { w: number; h: number }
   inputResolutions: Array<{ width: number; height: number } | null> | undefined
+  numPips: number
 }
 
-function PipEditor({ productionId, onApply, className, inputSlots, pgmResolution, inputResolutions }: PipEditorProps) {
+function PipEditor({ productionId, onApply, className, inputSlots, pgmResolution, inputResolutions, numPips }: PipEditorProps) {
   const pips = usePipStore((s) => s.pips)
 
   const [editingPipIdx, setEditingPipIdx] = useState(0)
@@ -493,7 +494,7 @@ function PipEditor({ productionId, onApply, className, inputSlots, pgmResolution
   // Sync draft from server pips (only when not dirty)
   useEffect(() => {
     if (isDirtyRef.current) return
-    const pip = pips[editingPipIdx]
+    const pip = paddedPips[editingPipIdx]
     setDraft(pip ? structuredClone(pip) : { bg: null, zones: [], transforms: {} })
   }, [pips, editingPipIdx])
 
@@ -705,13 +706,16 @@ function PipEditor({ productionId, onApply, className, inputSlots, pgmResolution
     }
   }, [])
 
-  if (pips.length === 0) {
+  if (numPips === 0) {
     return (
       <div className="p-4 text-zinc-500 text-xs text-center">
         No PiP slots in this flow.
       </div>
     )
   }
+
+  // Pad pips array to match numPips (Strom may send fewer entries than configured)
+  const paddedPips = pips.length >= numPips ? pips : [...pips, ...Array.from({ length: numPips - pips.length }, () => ({ bg: null as number | null, zones: [] as any[], transforms: {} as Record<number, any> }))]
 
   const flushPending = () => {
     if (isDirtyRef.current) {
@@ -759,7 +763,7 @@ function PipEditor({ productionId, onApply, className, inputSlots, pgmResolution
     <div className={cn('flex flex-col gap-2 p-2 border border-zinc-800 bg-zinc-950', className)}>
       {/* Header row: pip tabs + edit/done toggle */}
       <div className="flex items-center gap-1">
-        {pips.length > 1 && pips.map((_, i) => (
+        {numPips > 1 && paddedPips.map((_, i) => (
           <button
             key={i}
             onClick={() => {
@@ -1164,6 +1168,7 @@ export function PipModule({ send, productionId }: { send: SendFn; productionId: 
   const [inputSlots, setInputSlots] = useState<Array<{ idx: number; name: string }>>([])
   const [pgmResolution, setPgmResolution] = useState<{ w: number; h: number }>({ w: 1920, h: 1080 })
   const [inputResolutions, setInputResolutions] = useState<Array<{ width: number; height: number } | null> | undefined>(undefined)
+  const [numPips, setNumPips] = useState(0)
 
   const VIRTUAL_SOURCE_NAMES: Record<string, string> = useMemo(() => ({ '__test1__': 'PINWHEEL', '__test2__': 'COLORS' }), [])
 
@@ -1189,6 +1194,7 @@ export function PipModule({ send, productionId }: { send: SendFn; productionId: 
         setInputSlots(slots)
         setPgmResolution(parsePgmResolution(production.values?.pgm_resolution))
         setInputResolutions(production.inputResolutions)
+        setNumPips(production.values?.num_pips !== undefined ? parseInt(String(production.values.num_pips), 10) : 0)
       } catch {
         // production not found / server unreachable — leave the module empty
       }
@@ -1210,6 +1216,7 @@ export function PipModule({ send, productionId }: { send: SendFn; productionId: 
           inputSlots={inputSlots}
           pgmResolution={pgmResolution}
           inputResolutions={inputResolutions}
+          numPips={numPips}
         />
       </div>
     </div>

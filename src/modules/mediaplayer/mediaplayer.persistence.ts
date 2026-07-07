@@ -6,19 +6,22 @@ interface SavedMediaPlayer {
   playlists: Record<string, string[]>
 }
 
-/**
- * Persist mediaplayer playlists to the production document in CouchDB.
- * Called when the user clicks the save icon in the module header.
- */
+async function patchValues(productionId: string, key: string, value: string) {
+  // Read existing values first to avoid wiping them out with a replacement PATCH
+  const prod = await request<{ values?: Record<string, string | number | boolean> }>(
+    `/api/v1/productions/${productionId}`,
+  ).catch(() => ({ values: {} as Record<string, string | number | boolean> }))
+  const merged = { ...(prod.values ?? {}), [key]: value }
+  await request(`/api/v1/productions/${productionId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ values: merged }),
+  }).catch(() => {})
+}
+
 export async function saveMediaPlayerState(productionId: string) {
   const { useMediaPlayerStore } = await import('@/modules/mediaplayer/mediaplayer.store')
   const { playlists } = useMediaPlayerStore.getState()
-
-  const data: SavedMediaPlayer = { playlists }
-  await request(`/api/v1/productions/${productionId}`, {
-    method: 'PATCH',
-    body: JSON.stringify({ values: { [MODULE_KEY]: JSON.stringify(data) } }),
-  }).catch(() => {})
+  await patchValues(productionId, MODULE_KEY, JSON.stringify({ playlists } as SavedMediaPlayer))
 }
 
 /**
