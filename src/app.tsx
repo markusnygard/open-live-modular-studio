@@ -1,17 +1,21 @@
-import { BrowserRouter, Routes, Route, Navigate, useParams } from 'react-router'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router'
 import { StudioShell } from './studio/StudioShell'
-
-function PanePage() {
-  const { moduleId } = useParams<{ moduleId: string }>()
-  return <div>Pane: {moduleId}</div>
-}
+import { PanePage } from './pages/PanePage'
+import '@/modules/multiviewer'
+import '@/modules/pgm'
+import '@/modules/timer'
+import '@/modules/controller'
+import '@/modules/audio'
+import '@/modules/looks'
+import '@/modules/pip'
+import '@/modules/mediaplayer'
 
 export function App() {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/studio-modular" element={<StudioShell productionId={null} />} />
-        <Route path="/pane/:moduleId" element={<PanePage />} />
+        <Route path="/pane/:moduleId" element={<PanePage productionId={null} />} />
         <Route path="*" element={<Navigate to="/studio-modular" replace />} />
       </Routes>
     </BrowserRouter>
