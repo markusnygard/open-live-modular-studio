@@ -39,11 +39,7 @@ export const router = createBrowserRouter([
       { index: true, element: <Navigate to="/productions" replace /> },
       { path: 'productions', element: <ProductionsPage /> },
       { path: 'setup/*', element: <SetupPage /> },
+      { path: 'studio', element: <StudioPageWrapper /> },
     ],
-  },
-  {
-    // Studio (production view) — modular system, full screen, no Shell
-    path: '/studio',
-    element: <StudioPageWrapper />,
   },
 ])

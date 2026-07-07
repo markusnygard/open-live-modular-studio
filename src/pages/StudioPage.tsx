@@ -119,7 +119,7 @@ function StudioPageInner({ productionId }: { productionId: string }) {
     (pipVisible && numPips > 0) || (mediaplayerVisible && hasMediaPlayers)
 
   return (
-    <div className="h-screen w-screen flex flex-col overflow-hidden" style={{ background: '#000000' }}>
+    <div className="flex flex-col flex-1 min-h-0 overflow-hidden" style={{ background: '#000000' }}>
       <PageHeader
         title={
           <div className="flex items-center gap-3">
