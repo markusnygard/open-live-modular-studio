@@ -1202,9 +1202,6 @@ export function PipModule({ send, productionId }: { send: SendFn; productionId: 
 
   return (
     <div className="flex flex-col h-full min-w-0">
-      <div className="flex items-center gap-1.5 text-zinc-500 shrink-0 px-1 py-0.5">
-        <span className="text-[10px] font-semibold uppercase tracking-widest">PiP Editor</span>
-      </div>
       <div className="overflow-y-auto flex-1 min-h-0">
         <PipEditor
           productionId={productionId}
