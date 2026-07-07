@@ -4,7 +4,7 @@ import tailwindcss from '@tailwindcss/vite'
 import { resolve } from 'path'
 
 const OPEN_LIVE_URL = process.env.OPEN_LIVE_URL || 'http://localhost:8000'
-const STROM_URL = process.env.STROM_URL || 'http://open-live:8080'
+const STROM_URL = process.env.STROM_URL || 'http://192.168.1.11:8080'
 
 export default defineConfig({
   envPrefix: ['OPEN_LIVE_', 'VITE_', 'OSC_'],
