@@ -1,8 +1,9 @@
 import type { PipConfig } from '@/shared/types'
 
+const STROM_HOST = window.location.hostname
+
 async function stromGet<T>(path: string): Promise<T> {
-  // Route through Vite proxy: /strom/api/flows/... -> Strom's /api/flows/...
-  const res = await fetch(`/strom${path}`, {
+  const res = await fetch(`http://${STROM_HOST}:8080${path}`, {
     headers: { 'Authorization': 'Bearer dev-key-local' },
   })
   if (!res.ok) throw new Error(`Strom API ${res.status}`)
