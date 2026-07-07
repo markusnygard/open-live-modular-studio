@@ -100,7 +100,7 @@ export function ModuleHeader({
   }
 
   return (
-    <div className="flex items-center gap-1.5 text-[--color-text-muted] shrink-0">
+    <div className="flex items-center gap-1.5 text-[--color-text-primary] shrink-0">
       {/* Icon */}
       <span className="flex items-center">{icon}</span>
 

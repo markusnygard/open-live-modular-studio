@@ -138,7 +138,7 @@ function StudioPageInner({ productionId }: { productionId: string }) {
                 key={id}
                 type="button"
                 onClick={() => toggle(id)}
-                className={`cursor-pointer transition-colors ${vis(id) ? 'text-orange-500' : 'text-zinc-600'}`}
+                className={`cursor-pointer transition-colors ${vis(id) ? 'text-orange-500' : 'text-zinc-400'}`}
               >
                 <Icon />
               </button>
