@@ -313,19 +313,17 @@ export function ChannelStrip({
           )}
         </div>
 
-        {/* Pan slider — L+R at edges, 76px slider */}
+        {/* Pan slider — L + PAN(slider) + R in one row, PAN centered behind slider */}
         {chNum > 0 && (
-          <div className="flex flex-col items-center gap-0 py-1 bg-[#0a0a0a] relative group cursor-pointer">
-            <span className="text-[7px] text-white leading-none">PAN</span>
-            <div className="flex items-center w-full">
-              <span className="text-[8px] text-white w-2 text-right leading-none font-semibold">L</span>
-              <input type="range" min={-1} max={1} step={0.02} value={panVal}
-                className="flex-1 h-1 accent-blue-500 cursor-pointer mx-px"
-                style={{ margin: 0 }}
-                onChange={(e) => send({ type: 'AUDIO_DYNAMICS_SET', channel: chNum, property: 'pan', value: parseFloat(e.target.value) })}
-                onDoubleClick={() => send({ type: 'AUDIO_DYNAMICS_SET', channel: chNum, property: 'pan', value: 0 })} />
-              <span className="text-[8px] text-white w-2 leading-none font-semibold">R</span>
-            </div>
+          <div className="relative flex items-center w-full py-1 bg-[#0a0a0a] group cursor-pointer">
+            <span className="absolute inset-x-0 text-center text-[7px] text-white/40 leading-none pointer-events-none">PAN</span>
+            <span className="text-[8px] text-white font-semibold leading-none shrink-0 pl-px">L</span>
+            <input type="range" min={-1} max={1} step={0.02} value={panVal}
+              className="flex-1 h-1 accent-blue-500 cursor-pointer mx-0.5"
+              style={{ margin: 0 }}
+              onChange={(e) => send({ type: 'AUDIO_DYNAMICS_SET', channel: chNum, property: 'pan', value: parseFloat(e.target.value) })}
+              onDoubleClick={() => send({ type: 'AUDIO_DYNAMICS_SET', channel: chNum, property: 'pan', value: 0 })} />
+            <span className="text-[8px] text-white font-semibold leading-none shrink-0 pr-px">R</span>
             <span className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
               <span className="text-[9px] font-bold text-orange-500 bg-black/80 px-1 rounded tabular-nums">{Math.round(panVal * 100)}</span>
             </span>
