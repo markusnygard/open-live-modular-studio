@@ -46,6 +46,13 @@ export function AuxMasterStrip({ auxBus, label, send, onSelect }: {
     }, 80)
   }, [auxBus, send, setMasterLevel])
 
+  const handleFaderDoubleClick = useCallback(() => {
+    const volume = 1.0
+    setMasterLevel(auxBus, volume)
+    if (throttleRef.current !== null) clearTimeout(throttleRef.current)
+    send({ type: 'AUX_MASTER_SET', auxBus, volume, muted: mutedRef.current })
+  }, [auxBus, send, setMasterLevel])
+
   const handleOnClick = useCallback(() => {
     const next = !muted
     setMasterMuted(auxBus, next)
@@ -81,7 +88,7 @@ export function AuxMasterStrip({ auxBus, label, send, onSelect }: {
           <VuMeter elementId={meterId} />
           <PeakReadout elementId={meterId} />
         </div>
-        <Fader value={level} onChange={handleChange} onMouseDown={handleFaderMouseDown} ariaLabel={`${label} master fader`} disabled={muted} />
+        <Fader value={level} onChange={handleChange} onMouseDown={handleFaderMouseDown} onDoubleClick={handleFaderDoubleClick} ariaLabel={`${label} master fader`} disabled={muted} />
       </div>
 
       {/* Bottom */}

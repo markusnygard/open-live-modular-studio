@@ -1,4 +1,4 @@
-import { useRef, useCallback } from 'react'
+import { useRef, useCallback, useEffect } from 'react'
 import { cn } from '@/shared/cn'
 import type { SendFn } from '@/studio/types'
 import { useAudioStore } from '../audio.store'
@@ -17,6 +17,8 @@ export function MonitorMasterStrip({ send }: { send: SendFn }) {
   const setMuted = useAudioStore((s) => s.setMonitorMuted)
 
   const throttleRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const mutedRef = useRef(muted)
+  useEffect(() => { mutedRef.current = muted }, [muted])
 
   const handleFaderMouseDown = useCallback(() => {
     document.body.classList.add('fader-dragging')
@@ -34,9 +36,16 @@ export function MonitorMasterStrip({ send }: { send: SendFn }) {
     if (throttleRef.current !== null) clearTimeout(throttleRef.current)
     throttleRef.current = setTimeout(() => {
       throttleRef.current = null
-      send({ type: 'MONITOR_SET', volume, muted })
+      send({ type: 'MONITOR_SET', volume, muted: mutedRef.current })
     }, 80)
-  }, [muted, send, setLevel])
+  }, [send, setLevel])
+
+  const handleFaderDoubleClick = useCallback(() => {
+    const volume = 1.0
+    setLevel(volume)
+    if (throttleRef.current !== null) clearTimeout(throttleRef.current)
+    send({ type: 'MONITOR_SET', volume, muted: mutedRef.current })
+  }, [send, setLevel])
 
   const handleOnClick = useCallback(() => {
     const next = !muted
@@ -70,7 +79,7 @@ export function MonitorMasterStrip({ send }: { send: SendFn }) {
           <VuMeter elementId="monitor" numChannels={2} />
           <PeakReadout elementId="monitor" />
         </div>
-        <Fader value={level} onChange={handleChange} onMouseDown={handleFaderMouseDown} ariaLabel="Monitor master fader" disabled={muted} />
+        <Fader value={level} onChange={handleChange} onMouseDown={handleFaderMouseDown} onDoubleClick={handleFaderDoubleClick} ariaLabel="Monitor master fader" disabled={muted} />
       </div>
 
       <div className="border-t border-zinc-800 shrink-0 flex overflow-hidden">

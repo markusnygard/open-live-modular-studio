@@ -40,6 +40,13 @@ export function AuxChannelStrip({ elementId, label, auxBus, send, busPre }: {
     }, 80)
   }, [elementId, auxBus, send, setAuxSend])
 
+  const handleFaderDoubleClick = useCallback(() => {
+    const volume = 1.0
+    setAuxSend(elementId, auxBus, volume)
+    if (throttleRef.current !== null) clearTimeout(throttleRef.current)
+    send({ type: 'AUX_SEND_SET', elementId, auxBus, level: volume, enabled: enabledRef.current, pre: preRef.current })
+  }, [elementId, auxBus, send, setAuxSend])
+
   const handleOnClick = useCallback(() => {
     const next = !enabled
     setAuxEnabled(elementId, auxBus, next)
@@ -76,6 +83,7 @@ export function AuxChannelStrip({ elementId, label, auxBus, send, busPre }: {
           <Fader
             value={level}
             onChange={handleChange}
+            onDoubleClick={handleFaderDoubleClick}
             ariaLabel={`${label} AUX ${auxBus} send`}
             prePost={busPre === undefined ? undefined : busPre ? 'PRE' : 'POST'}
           />

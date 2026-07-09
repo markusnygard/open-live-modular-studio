@@ -1,4 +1,4 @@
-import { useRef, useCallback } from 'react'
+import { useRef, useCallback, useEffect } from 'react'
 import { cn } from '@/shared/cn'
 import type { SendFn } from '@/studio/types'
 import { useAudioStore } from '../audio.store'
@@ -23,6 +23,8 @@ export function GrpMasterStrip({ grpBus, label, send, onSelect }: {
   const meterId = `grp${grpBus}`
 
   const throttleRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const mutedRef = useRef(muted)
+  useEffect(() => { mutedRef.current = muted }, [muted])
 
   const handleFaderMouseDown = useCallback(() => {
     document.body.classList.add('fader-dragging')
@@ -40,9 +42,16 @@ export function GrpMasterStrip({ grpBus, label, send, onSelect }: {
     if (throttleRef.current !== null) clearTimeout(throttleRef.current)
     throttleRef.current = setTimeout(() => {
       throttleRef.current = null
-      send({ type: 'GRP_MASTER_SET', grpBus, volume, muted })
+      send({ type: 'GRP_MASTER_SET', grpBus, volume, muted: mutedRef.current })
     }, 80)
-  }, [grpBus, muted, send, setMasterLevel])
+  }, [grpBus, send, setMasterLevel])
+
+  const handleFaderDoubleClick = useCallback(() => {
+    const volume = 1.0
+    setMasterLevel(grpBus, volume)
+    if (throttleRef.current !== null) clearTimeout(throttleRef.current)
+    send({ type: 'GRP_MASTER_SET', grpBus, volume, muted: mutedRef.current })
+  }, [grpBus, send, setMasterLevel])
 
   const handleOnClick = useCallback(() => {
     const next = !muted
@@ -82,7 +91,7 @@ export function GrpMasterStrip({ grpBus, label, send, onSelect }: {
           <VuMeter elementId={meterId} />
           <PeakReadout elementId={meterId} />
         </div>
-        <Fader value={level} onChange={handleChange} onMouseDown={handleFaderMouseDown} ariaLabel={`${label} master fader`} disabled={muted} />
+        <Fader value={level} onChange={handleChange} onMouseDown={handleFaderMouseDown} onDoubleClick={handleFaderDoubleClick} ariaLabel={`${label} master fader`} disabled={muted} />
       </div>
 
       {/* Bottom */}
