@@ -24,6 +24,7 @@ interface RawOutput {
   name: string
   outputType: string
   url?: string
+  latency?: number
   outputDir?: string
   container?: string
 }
@@ -36,6 +37,7 @@ interface OutputStartConfig {
   type: OutputKind
   destination?: string
   bitrate?: number
+  latency?: number
   deviceNumber?: number
   ndiName?: string
   outputDir?: string
@@ -46,7 +48,7 @@ function buildStartConfig(kind: OutputKind, output: RawOutput): OutputStartConfi
   switch (kind) {
     case 'srt':
     case 'efp':
-      return { type: kind, destination: output.url }
+      return { type: kind, destination: output.url, latency: output.latency }
     case 'recording':
       return { type: kind, outputDir: output.outputDir, container: output.container }
     case 'ndi':
