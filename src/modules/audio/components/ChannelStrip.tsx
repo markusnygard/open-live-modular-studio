@@ -315,9 +315,9 @@ export function ChannelStrip({
 
         {/* Pan slider — shown for input channels */}
         {chNum > 0 && (
-          <div className="flex flex-col items-center gap-0 py-1 bg-[#0a0a0a] relative group cursor-pointer">
+          <div className="flex flex-col items-center gap-0 py-1 bg-[#0a0a0a] relative group cursor-pointer px-2.5">
             <span className="text-[7px] text-zinc-500 leading-none">PAN</span>
-            <div className="flex items-center gap-px w-full" style={{ paddingLeft: 2, paddingRight: 2 }}>
+            <div className="flex items-center gap-px w-full">
               <span className="text-[7px] text-zinc-600 w-2.5 text-right leading-none">L</span>
               <input type="range" min={-1} max={1} step={0.02} value={panVal}
                 className="flex-1 h-1 accent-blue-500 cursor-pointer"
