@@ -137,22 +137,21 @@ export function OutputsPanel() {
   const [newContainer, setNewContainer] = useState('mp4')
   const [newAudioSource, setNewAudioSource] = useState('pgm')
   const [newVideoSource, setNewVideoSource] = useState('pgm')
-  const [recorderProdId, setRecorderProdId] = useState('')
-  const [recorderSources, setRecorderSources] = useState<Array<{ sourceId: string; mixerInput: string; name: string }>>([])
+  const [selectedProdId, setSelectedProdId] = useState('')
+  const [prodSources, setProdSources] = useState<Array<{ sourceId: string; mixerInput: string; name: string }>>([])
   const [dirPickerOpen, setDirPickerOpen] = useState(false)
 
-  // Fetch production sources when a production is selected for recorder
   useEffect(() => {
-    if (!recorderProdId) { setRecorderSources([]); return }
-    productionsApi.get(recorderProdId).then((prod) => {
+    if (!selectedProdId) { setProdSources([]); return }
+    productionsApi.get(selectedProdId).then((prod) => {
       const assignments = prod.sources ?? []
       const named = assignments.map((a) => {
         const src = sources.find((s) => s.id === a.sourceId)
         return { sourceId: a.sourceId, mixerInput: a.mixerInput, name: src?.name ?? a.mixerInput }
       })
-      setRecorderSources(named)
-    }).catch(() => setRecorderSources([]))
-  }, [recorderProdId, sources])
+      setProdSources(named)
+    }).catch(() => setProdSources([]))
+  }, [selectedProdId, sources])
 
   function resetAdd() {
     setNewName('')
@@ -162,7 +161,7 @@ export function OutputsPanel() {
     setNewContainer('mp4')
     setNewAudioSource('pgm')
     setNewVideoSource('pgm')
-    setRecorderProdId('')
+    setSelectedProdId('')
     setDirPickerOpen(false)
     setAddUrlError(null)
   }
@@ -189,11 +188,11 @@ export function OutputsPanel() {
     }
     const url = typeNeedsUrl(newType) ? newUrl.trim() : typeNeedsDevice(newType) ? (newUrl.trim() || '0') : undefined
     const body: Record<string, unknown> = { name: newName.trim(), outputType: newType, url }
+    if (selectedProdId && newVideoSource) body.videoSource = newVideoSource
+    if (selectedProdId && newAudioSource) body.audioSource = newAudioSource
     if (newType === 'recorder') {
       body.outputDir = newOutputDir
       body.container = newContainer
-      body.audioSource = newAudioSource
-      body.videoSource = newVideoSource
     }
     await addOutput(body as { name: string; outputType: OutputType; url?: string; outputDir?: string; container?: string; audioSource?: string; videoSource?: string })
     resetAdd()
@@ -212,11 +211,11 @@ export function OutputsPanel() {
       name: editTarget.name.trim(),
       url: isSrt ? editTarget.url.trim() || undefined : undefined,
     }
+    if (editTarget.videoSource) body.videoSource = editTarget.videoSource
+    if (editTarget.audioSource) body.audioSource = editTarget.audioSource
     if (editTarget.outputType === 'recorder') {
       body.outputDir = editTarget.outputDir
       body.container = editTarget.container
-      body.audioSource = editTarget.audioSource
-      body.videoSource = editTarget.videoSource
     }
     await updateOutput(editTarget.id, body as { name?: string; url?: string })
     setEditUrlError(null)
@@ -258,7 +257,7 @@ export function OutputsPanel() {
                   ? 'border-[--color-border] hover:border-zinc-600 cursor-not-allowed'
                   : 'border-[--color-border] hover:border-orange-500 cursor-pointer'
               }`}
-              onClick={() => !inActiveProd && setEditTarget({ id: o.id, name: o.name, url: o.url ?? '', outputType: o.outputType })}
+              onClick={() => !inActiveProd && setEditTarget({ id: o.id, name: o.name, url: o.url ?? '', outputType: o.outputType, videoSource: o.videoSource, audioSource: o.audioSource, outputDir: (o as any).outputDir, container: (o as any).container })}
             >
               <StatusDot color={inActiveProd ? 'red' : 'gray'} />
               <div className="flex-1 min-w-0">
@@ -275,7 +274,7 @@ export function OutputsPanel() {
               <Button
                 size="sm"
                 variant="ghost"
-                onClick={(e) => { e.stopPropagation(); !inActiveProd && setEditTarget({ id: o.id, name: o.name, url: o.url ?? '', outputType: o.outputType }) }}
+                onClick={(e) => { e.stopPropagation(); !inActiveProd && setEditTarget({ id: o.id, name: o.name, url: o.url ?? '', outputType: o.outputType, videoSource: o.videoSource, audioSource: o.audioSource, outputDir: (o as any).outputDir, container: (o as any).container }) }}
                 disabled={inActiveProd}
                 className="text-white hover:text-orange-500 disabled:opacity-30 disabled:cursor-not-allowed"
                 title={inActiveProd ? 'Cannot edit output in an active production' : 'Edit output'}
@@ -401,7 +400,6 @@ export function OutputsPanel() {
                   className="px-3 py-2 rounded border border-[--color-border-strong] bg-[--color-surface-2] text-xs text-[--color-text-muted] hover:text-orange-500 whitespace-nowrap">Browse...</button>
               </div>
             </div>
-            {/* Dir picker — shown inline, no nested modal */}
             {dirPickerOpen && (
             <div className="border border-[--color-border-strong] rounded p-3 bg-[--color-surface-raised]">
               <div className="flex items-center justify-between mb-2">
@@ -412,34 +410,39 @@ export function OutputsPanel() {
               <DirPicker value={newOutputDir} onChange={(d) => { setNewOutputDir(d); setDirPickerOpen(false) }} onClose={() => setDirPickerOpen(false)} />
             </div>
             )}
-            <div>
-              <label className="text-xs text-[--color-text-muted] uppercase tracking-wider block mb-1">Video Source</label>
-              <select value={recorderProdId} onChange={(e) => { setRecorderProdId(e.target.value); setNewVideoSource('pgm') }}
-                className="w-full px-3 py-2 rounded bg-[--color-surface-raised] border border-[--color-border-strong] text-sm text-[--color-text-primary] focus:outline-none focus:border-orange-500">
-                <option value="">— select production —</option>
-                {productions.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs text-[--color-text-muted] uppercase tracking-wider block mb-1">Record Source</label>
-              <select value={newVideoSource} onChange={(e) => setNewVideoSource(e.target.value)}
-                className="w-full px-3 py-2 rounded bg-[--color-surface-raised] border border-[--color-border-strong] text-sm text-[--color-text-primary] focus:outline-none focus:border-orange-500">
-                <option value="pgm">PGM (Program Feed)</option>
-                <option value="pgm_clean">Clean PGM (no DSK)</option>
-                {recorderSources.map((s) => (
-                  <option key={s.sourceId} value={s.sourceId}>{s.name}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs text-[--color-text-muted] uppercase tracking-wider block mb-1">Audio Source</label>
-              <select value={newAudioSource} onChange={(e) => setNewAudioSource(e.target.value)}
-                className="w-full px-3 py-2 rounded bg-[--color-surface-raised] border border-[--color-border-strong] text-sm text-[--color-text-primary] focus:outline-none focus:border-orange-500">
-                <option value="pgm">PGM (Program Mix)</option>
-              </select>
-            </div>
+          </div>
+          )}
+          <div>
+            <label className="text-xs text-[--color-text-muted] uppercase tracking-wider block mb-1">Production</label>
+            <select value={selectedProdId} onChange={(e) => { setSelectedProdId(e.target.value); setNewVideoSource('pgm'); setNewAudioSource('pgm') }}
+              className="w-full px-3 py-2 rounded bg-[--color-surface-raised] border border-[--color-border-strong] text-sm text-[--color-text-primary] focus:outline-none focus:border-orange-500">
+              <option value="">— select production —</option>
+              {productions.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs text-[--color-text-muted] uppercase tracking-wider block mb-1">Source</label>
+            <select value={newVideoSource} onChange={(e) => setNewVideoSource(e.target.value)}
+              className="w-full px-3 py-2 rounded bg-[--color-surface-raised] border border-[--color-border-strong] text-sm text-[--color-text-primary] focus:outline-none focus:border-orange-500">
+              <option value="pgm">PGM (Program Feed)</option>
+              <option value="pgm_clean">Clean PGM (no DSK)</option>
+              {prodSources.map((s) => (
+                <option key={s.sourceId} value={s.sourceId}>{s.name}</option>
+              ))}
+            </select>
+          </div>
+          {(newType === 'mpegtssrt' || newType === 'efpsrt' || newType === 'recorder') && (
+          <div>
+            <label className="text-xs text-[--color-text-muted] uppercase tracking-wider block mb-1">Audio Source</label>
+            <select value={newAudioSource} onChange={(e) => setNewAudioSource(e.target.value)}
+              className="w-full px-3 py-2 rounded bg-[--color-surface-raised] border border-[--color-border-strong] text-sm text-[--color-text-primary] focus:outline-none focus:border-orange-500">
+              <option value="pgm">PGM (Program Mix)</option>
+              {newVideoSource && newVideoSource !== 'pgm' && newVideoSource !== 'pgm_clean' && (
+                <option value={newVideoSource}>Input audio</option>
+              )}
+            </select>
           </div>
           )}
           <div className="flex justify-end gap-2 pt-1">
@@ -510,21 +513,26 @@ export function OutputsPanel() {
                 <input type="text" value={editTarget.outputDir || ''} onChange={(e) => setEditTarget({ ...editTarget, outputDir: e.target.value })}
                   placeholder="recordings" className={inputCls} />
               </div>
-              <div>
-                <label className="text-xs text-[--color-text-muted] uppercase tracking-wider block mb-1">Record Source</label>
-                <select value={editTarget.videoSource || 'pgm'} onChange={(e) => setEditTarget({ ...editTarget, videoSource: e.target.value })}
-                  className="w-full px-3 py-2 rounded bg-[--color-surface-raised] border border-[--color-border-strong] text-sm text-[--color-text-primary] focus:outline-none focus:border-orange-500">
-                  <option value="pgm">PGM</option>
-                  <option value="pgm_clean">Clean PGM</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-xs text-[--color-text-muted] uppercase tracking-wider block mb-1">Audio Source</label>
-                <select value={editTarget.audioSource || 'pgm'} onChange={(e) => setEditTarget({ ...editTarget, audioSource: e.target.value })}
-                  className="w-full px-3 py-2 rounded bg-[--color-surface-raised] border border-[--color-border-strong] text-sm text-[--color-text-primary] focus:outline-none focus:border-orange-500">
-                  <option value="pgm">PGM</option>
-                </select>
-              </div>
+            </div>
+            )}
+            <div>
+              <label className="text-xs text-[--color-text-muted] uppercase tracking-wider block mb-1">Source</label>
+              <select value={editTarget.videoSource || 'pgm'} onChange={(e) => setEditTarget({ ...editTarget, videoSource: e.target.value })}
+                className="w-full px-3 py-2 rounded bg-[--color-surface-raised] border border-[--color-border-strong] text-sm text-[--color-text-primary] focus:outline-none focus:border-orange-500">
+                <option value="pgm">PGM (Program Feed)</option>
+                <option value="pgm_clean">Clean PGM (no DSK)</option>
+              </select>
+            </div>
+            {(editTarget.outputType === 'mpegtssrt' || editTarget.outputType === 'efpsrt' || editTarget.outputType === 'recorder') && (
+            <div>
+              <label className="text-xs text-[--color-text-muted] uppercase tracking-wider block mb-1">Audio Source</label>
+              <select value={editTarget.audioSource || 'pgm'} onChange={(e) => setEditTarget({ ...editTarget, audioSource: e.target.value })}
+                className="w-full px-3 py-2 rounded bg-[--color-surface-raised] border border-[--color-border-strong] text-sm text-[--color-text-primary] focus:outline-none focus:border-orange-500">
+                <option value="pgm">PGM (Program Mix)</option>
+                {editTarget.videoSource && editTarget.videoSource !== 'pgm' && editTarget.videoSource !== 'pgm_clean' && (
+                  <option value={editTarget.videoSource}>Input audio</option>
+                )}
+              </select>
             </div>
             )}
             <div className="flex justify-end gap-2 pt-1">

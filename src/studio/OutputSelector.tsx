@@ -8,6 +8,7 @@ interface OutputInfo {
   url?: string
   running: boolean
   error?: string
+  health?: string
 }
 
 interface OutputTypeGroup {
@@ -174,8 +175,11 @@ export function OutputSelector({ productionId }: { productionId: string | null }
         // Check running status for each
         const withStatus = await Promise.all(assigned.map(async o => {
           try {
-            const s = await request<{ state: string }>(`/api/v1/productions/${productionId}/outputs/${o.id}/status`)
-            return { ...o, running: s.state === 'running', error: undefined as string | undefined }
+            const s = await request<{ state: string; health?: string }>(`/api/v1/productions/${productionId}/outputs/${o.id}/status`)
+            const errorMsg = s.health === 'error' ? 'Pipeline failed'
+              : s.health === 'no_clients' ? 'No SRT client'
+              : undefined
+            return { ...o, running: s.state === 'running', error: errorMsg, health: s.health }
           } catch {
             return { ...o, running: false, error: undefined as string | undefined }
           }
