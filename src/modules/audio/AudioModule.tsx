@@ -15,7 +15,7 @@ import { FaderDimsProvider } from './components/Fader'
 
 // Fader height inside the 392 px bottom slot — sized so the surrounding chrome
 // (header, H/G/C/E row, ON/AFV row, pan) still fits without heavy scrolling.
-const MODULE_FADER_H = 250
+const MODULE_FADER_H = 220
 
 // ── Raw production shape (subset — just the config values we read) ──────────────
 interface RawProduction {
