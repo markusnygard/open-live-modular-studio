@@ -10,6 +10,9 @@ import { MacroBar } from './MacroBar'
 
 const CONTROLLER_OPTIONS_KEY = 'ol-studio-controller-options'
 
+/** Test source display names — backend uses internal IDs ('__test1__', etc.) but the UI shows descriptive labels. */
+const VIRTUAL_SOURCE_NAMES: Record<string, string> = { '__test1__': 'PINWHEEL', '__test2__': 'COLORS' }
+
 // ─── Raw API shapes (subset of the backend production/source/graphic/macro docs) ──
 interface RawProduction {
   _id: string
@@ -85,7 +88,7 @@ export function ControllerModule({ send, productionId }: { send: SendFn; product
         const sourceAssignments: SourceAssignment[] = (production.sources ?? []).map((a) => ({
           mixerInput: a.mixerInput,
           sourceId: a.sourceId,
-          name: sources.find((s) => s.id === a.sourceId)?.name ?? a.mixerInput,
+          name: sources.find((s) => s.id === a.sourceId)?.name ?? VIRTUAL_SOURCE_NAMES[a.sourceId] ?? a.mixerInput,
         }))
         const graphicAssignments: GraphicAssignment[] = (production.graphicAssignments ?? []).map((g) => ({
           dskInput: g.dskInput,
