@@ -12,7 +12,6 @@ import { useIsOnAir } from '@/studio/useIsOnAir'
 import type { SendFn } from '@/studio/types'
 import {
   MultiviewerIcon, MonitorIcon, ControllerIcon, AudioIcon, LooksIcon, PipIcon, MediaPlayerIcon,
-  SrtStreamIcon, EfpStreamIcon, RecorderIcon, NdiIcon, SdiIcon,
 } from '@/studio/icons'
 import { useProductionStore } from '@/store/production.store'
 import { useControllerStore } from '@/modules/controller/controller.store'
@@ -23,7 +22,7 @@ import { useOutputsStore } from '@/store/outputs.store'
 import { useViewerStore } from '@/store/viewer.store'
 import { loadMediaPlayerState, saveMediaPlayerState } from '@/modules/mediaplayer/mediaplayer.persistence'
 import { loadPipState, savePipState } from '@/modules/pip/pip.persistence'
-import type { OutputType } from '@/lib/api'
+import { OutputSelector } from '@/studio/OutputSelector'
 
 // Ensure every module registers itself in the shared registry regardless of
 // which entry point loaded this page.
@@ -57,16 +56,6 @@ function ModuleRenderer({ moduleId, send, productionId }: { moduleId: string; se
   return <Component send={send} productionId={productionId} />
 }
 
-// ─── Header icon groups ─────────────────────────────────────────────────────────
-
-const OUTPUT_ICONS: { type: OutputType; Icon: FC }[] = [
-  { type: 'mpegtssrt', Icon: SrtStreamIcon },
-  { type: 'efpsrt',    Icon: EfpStreamIcon },
-  { type: 'recorder',  Icon: RecorderIcon  },
-  { type: 'ndi',       Icon: NdiIcon        },
-  { type: 'sdi',       Icon: SdiIcon        },
-]
-
 // ─── Inner (inside WsProvider) ────────────────────────────────────────────────────
 
 function StudioPageInner({ productionId }: { productionId: string }) {
@@ -77,7 +66,6 @@ function StudioPageInner({ productionId }: { productionId: string }) {
 
   const activeProduction = useProductionsStore((s) => s.productions.find((p) => p.id === productionId))
   const sources = useSourcesStore((s) => s.sources)
-  const outputs = useOutputsStore((s) => s.outputs)
   const isOnAir = useIsOnAir()
 
   // Load persisted module state when production is activated
@@ -94,13 +82,6 @@ function StudioPageInner({ productionId }: { productionId: string }) {
     .map((s) => sources.find((src) => src.id === s.sourceId))
     .filter((s) => s?.streamType === 'mediaplayer')
   const hasMediaPlayers = mediaPlayers.length > 0
-
-  // Output types actually assigned to this production.
-  const assignedOutputTypes = new Set(
-    (activeProduction?.outputAssignments ?? [])
-      .map((a) => outputs.find((o) => o.id === a.outputId)?.outputType)
-      .filter((t): t is OutputType => t !== undefined),
-  )
 
   // Module toggle icons — id must match a registered module.
   const PANEL_ICONS: { id: string; Icon: FC }[] = [
@@ -170,19 +151,8 @@ function StudioPageInner({ productionId }: { productionId: string }) {
         }
         actions={
           <div className="flex items-stretch gap-3">
-            {/* Output group — only shown for output types configured for this production */}
-            {assignedOutputTypes.size > 0 && (
-              <div className="flex items-center gap-2">
-                <span className="text-zinc-600 text-[10px] font-semibold uppercase tracking-wider">OUTPUT</span>
-                {OUTPUT_ICONS.map(({ type, Icon }) => (
-                  assignedOutputTypes.has(type) && (
-                    <span key={type} className="text-zinc-600">
-                      <Icon />
-                    </span>
-                  )
-                ))}
-              </div>
-            )}
+            {/* Output selector — dropdown buttons per output type */}
+            <OutputSelector productionId={productionId} />
 
             {/* Timer bar + LIVE button — flush together, same height */}
             <div className="flex items-stretch">
