@@ -1,13 +1,12 @@
-import { useParams } from 'react-router'
+import { useParams, useSearchParams } from 'react-router'
 import { getModuleById } from '@/studio/ModuleRegistry'
-import { WsProvider } from '@/studio/WsProvider'
+import { WsProvider, useWs } from '@/studio/WsProvider'
 import { eventBus } from '@/shared/event-bus'
 import { useMemo, useEffect } from 'react'
 
-export function PanePage({ productionId }: { productionId: string | null }) {
-  const { moduleId } = useParams<{ moduleId: string }>()
-  const bus = useMemo(() => eventBus, [])
-  const mod = moduleId ? getModuleById(moduleId) : undefined
+function PaneInner({ moduleId }: { moduleId: string }) {
+  const mod = getModuleById(moduleId)
+  const { send } = useWs()
 
   useEffect(() => {
     if (mod?.popoutSize) {
@@ -21,9 +20,22 @@ export function PanePage({ productionId }: { productionId: string | null }) {
 
   const Component = mod.standaloneComponent ?? mod.component
 
+  return <Component send={send} productionId={null} />
+}
+
+export function PanePage() {
+  const { moduleId } = useParams<{ moduleId: string }>()
+  const [searchParams] = useSearchParams()
+  const productionId = searchParams.get('production') || null
+  const bus = useMemo(() => eventBus, [])
+
+  if (!moduleId) {
+    return <div className="p-4 text-white bg-black h-screen">No module specified</div>
+  }
+
   return (
     <WsProvider productionId={productionId} eventBus={bus}>
-      <Component send={() => {}} productionId={productionId} />
+      <PaneInner moduleId={moduleId} />
     </WsProvider>
   )
 }

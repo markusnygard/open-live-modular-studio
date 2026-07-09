@@ -30,7 +30,7 @@ export const router = createBrowserRouter([
   {
     // Pop-out module pane — no Shell, no nav
     path: '/pane/:moduleId',
-    element: <PanePage productionId={null} />,
+    element: <PanePage />,
   },
   {
     path: '/',
