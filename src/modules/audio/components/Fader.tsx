@@ -27,6 +27,7 @@ export function Fader({
   value,
   onChange,
   onMouseDown,
+  onDoubleClick,
   ariaLabel,
   disabled = false,
   prePost,
@@ -34,6 +35,7 @@ export function Fader({
   value: number
   onChange: (faderPos: number) => void
   onMouseDown?: () => void
+  onDoubleClick?: () => void
   ariaLabel: string
   disabled?: boolean
   /** Optional PRE/POST badge above the fader (aux sends). */
@@ -108,6 +110,7 @@ export function Fader({
         step={0.005}
         value={volumeToFader(value)}
         onChange={(e) => onChange(parseFloat(e.target.value))}
+        onDoubleClick={onDoubleClick}
         onMouseDown={onMouseDown}
         aria-label={ariaLabel}
         className="fader-rotated fader-handle-a"

@@ -87,6 +87,13 @@ export function ChannelStrip({
     window.addEventListener('mouseup', onUp)
   }, [mode])
 
+  const handleFaderDoubleClick = useCallback(() => {
+    const volume = 1.0 // unity gain (0 dB)
+    setLevel(elementId, volume)
+    if (throttleRef.current !== null) clearTimeout(throttleRef.current)
+    send({ type: 'AUDIO_SET', elementId, property: 'volume', value: volume })
+  }, [elementId, setLevel, send])
+
   const throttleRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const handleChange = useCallback((faderPos: number) => {
@@ -275,7 +282,7 @@ export function ChannelStrip({
           </div>
 
           {/* Fader + tick marks */}
-          <Fader value={level} onChange={handleChange} onMouseDown={handleFaderMouseDown} ariaLabel={`${label} fader`} />
+          <Fader value={level} onChange={handleChange} onMouseDown={handleFaderMouseDown} onDoubleClick={handleFaderDoubleClick} ariaLabel={`${label} fader`} />
         </div>
       </div>
 
