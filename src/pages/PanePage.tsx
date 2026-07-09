@@ -4,7 +4,7 @@ import { WsProvider, useWs } from '@/studio/WsProvider'
 import { eventBus } from '@/shared/event-bus'
 import { useMemo, useEffect } from 'react'
 
-function PaneInner({ moduleId }: { moduleId: string }) {
+function PaneInner({ moduleId, productionId }: { moduleId: string; productionId: string | null }) {
   const mod = getModuleById(moduleId)
   const { send } = useWs()
 
@@ -20,7 +20,7 @@ function PaneInner({ moduleId }: { moduleId: string }) {
 
   const Component = mod.standaloneComponent ?? mod.component
 
-  return <Component send={send} productionId={null} />
+  return <Component send={send} productionId={productionId} />
 }
 
 export function PanePage() {
@@ -35,7 +35,7 @@ export function PanePage() {
 
   return (
     <WsProvider productionId={productionId} eventBus={bus}>
-      <PaneInner moduleId={moduleId} />
+      <PaneInner moduleId={moduleId} productionId={productionId} />
     </WsProvider>
   )
 }
