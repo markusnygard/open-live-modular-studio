@@ -313,20 +313,19 @@ export function ChannelStrip({
           )}
         </div>
 
-        {/* Pan slider — shown for input channels */}
+        {/* Pan slider — 72px slider centered in 92px strip (10px L + 10px R) */}
         {chNum > 0 && (
-          <div className="flex flex-col items-center gap-0 py-1 bg-[#0a0a0a] relative group cursor-pointer px-2.5">
+          <div className="flex flex-col items-center gap-0 py-1 bg-[#0a0a0a] relative group cursor-pointer">
             <span className="text-[7px] text-zinc-500 leading-none">PAN</span>
-            <div className="flex items-center gap-px w-full">
+            <div className="flex items-center gap-px">
               <span className="text-[7px] text-zinc-600 w-2.5 text-right leading-none">L</span>
               <input type="range" min={-1} max={1} step={0.02} value={panVal}
-                className="flex-1 h-1 accent-blue-500 cursor-pointer"
-                style={{ margin: 0 }}
+                className="h-1 accent-blue-500 cursor-pointer"
+                style={{ width: 72, margin: 0 }}
                 onChange={(e) => send({ type: 'AUDIO_DYNAMICS_SET', channel: chNum, property: 'pan', value: parseFloat(e.target.value) })}
                 onDoubleClick={() => send({ type: 'AUDIO_DYNAMICS_SET', channel: chNum, property: 'pan', value: 0 })} />
               <span className="text-[7px] text-zinc-600 w-2.5 leading-none">R</span>
             </div>
-            {/* Value tooltip on hover */}
             <span className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
               <span className="text-[9px] font-bold text-orange-500 bg-black/80 px-1 rounded tabular-nums">{Math.round(panVal * 100)}</span>
             </span>
