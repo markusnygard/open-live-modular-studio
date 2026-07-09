@@ -60,8 +60,7 @@ function OutputDropdown({ group, productionId, onStatusChange }: {
   const allRunning = group.outputs.length > 0 && group.outputs.every(o => o.running)
 
   // Button color
-  const btnColor = allRunning ? 'bg-red-700 border-red-600 text-white'
-    : hasRunning ? 'bg-red-700/60 border-red-600/50 text-white'
+  const btnColor = hasRunning ? 'bg-red-700 border-red-600 text-white'
     : hasError ? 'bg-amber-700 border-amber-600 text-white'
     : 'bg-zinc-800 border-zinc-600 text-zinc-400'
 
@@ -139,7 +138,9 @@ function OutputDropdown({ group, productionId, onStatusChange }: {
               className="flex-1 py-1 rounded text-[9px] font-bold bg-green-700 text-white hover:bg-green-600 disabled:opacity-40"
               disabled={starting}
             >
-              {hasRunning && (!selected.size || group.outputs.some(o => selected.has(o.id) && o.running)) ? 'Stop' : 'Start'}
+              {selected.size > 0
+                ? group.outputs.some(o => selected.has(o.id) && o.running) ? 'Stop' : 'Start'
+                : hasRunning ? 'Stop All' : 'Start All'}
             </button>
             <button onClick={() => setOpen(false)} className="px-2 py-1 rounded text-[9px] text-zinc-400 hover:text-white">✕</button>
           </div>
@@ -208,6 +209,8 @@ export function OutputSelector({ productionId }: { productionId: string | null }
 
   return (
     <div className="flex items-center gap-1.5">
+      <span className="text-zinc-600 text-[10px] font-semibold uppercase tracking-wider">OUTPUT</span>
+      <span className="text-zinc-700 text-[9px]">►</span>
       {groups.map(g => (
         <OutputDropdown key={g.type} group={g} productionId={productionId!} onStatusChange={refresh} />
       ))}
