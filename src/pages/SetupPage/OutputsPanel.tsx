@@ -112,9 +112,9 @@ export function OutputsPanel() {
 
   useEffect(() => {
     capabilitiesApi.get().then((caps) => {
-      setCreatableTypes(['mpegtssrt', 'efpsrt', 'recorder', ...(caps.ndi ? ['ndi' as OutputType] : []), ...(caps.sdi ? ['sdi' as OutputType] : [])])
+      setCreatableTypes(['mpegtssrt', 'efpsrt', 'recorder'])
       setSdiDevices(caps.sdiDevices > 0 ? caps.sdiDevices : 4)
-    }).catch(() => setCreatableTypes(['mpegtssrt', 'efpsrt', 'recorder', 'ndi', 'sdi']))
+    }).catch(() => setCreatableTypes(['mpegtssrt', 'efpsrt', 'recorder']))
   }, [])
 
   const activeOutputIds = new Set(
