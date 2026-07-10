@@ -27,48 +27,59 @@ function DirPicker({ value, onChange, onClose }: { value: string; onChange: (d: 
   }
   useEffect(() => { loadDir(MEDIA_ROOT) }, [])
 
-  // Convert absolute filesystem path to recorder-compatible relative path
   const toRelPath = (absPath: string) => {
     if (absPath.startsWith(MEDIA_ROOT + '/')) return absPath.slice(MEDIA_ROOT.length + 1)
     if (absPath === MEDIA_ROOT) return ''
-    return absPath // custom paths as-is
+    return absPath
+  }
+
+  const selectCurrentDir = () => {
+    onChange(toRelPath(currentPath))
+    onClose()
   }
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="text-xs text-[--color-text-muted]">
-        {currentPath || MEDIA_ROOT}
+      <div className="flex items-center gap-2 text-xs text-[--color-text-muted]">
+        <span className="truncate">{currentPath || MEDIA_ROOT}</span>
+        {value && (
+          <span className="text-[--color-accent]">→ {value || '/'}</span>
+        )}
       </div>
       <div className="flex gap-2">
         {parent !== null && currentPath !== MEDIA_ROOT && (
           <button type="button" onClick={() => loadDir(parent || MEDIA_ROOT)}
-            className="px-2 py-1 rounded text-xs border border-[--color-border-strong] bg-[--color-surface-2] text-[--color-text-muted] hover:text-white">..</button>
+            className="px-2 py-1 rounded text-xs border border-[--color-border-strong] bg-[--color-surface-2] text-[--color-text-muted] hover:text-white">⬆ ..</button>
         )}
       </div>
-      <div className="flex flex-col gap-1 max-h-60 overflow-y-auto border border-[--color-border-strong] rounded p-2">
+      <div className="flex flex-col gap-1 max-h-48 overflow-y-auto border border-[--color-border-strong] rounded p-2">
         {dirs.length === 0 && <div className="text-xs text-[--color-text-muted] p-2">No subdirectories</div>}
         {dirs.map((d) => {
           const fullPath = currentPath ? `${currentPath}/${d}` : `${MEDIA_ROOT}/${d}`
-          const relPath = toRelPath(fullPath)
-          const isSelected = relPath === value
           return (
-            <div key={d} className="flex items-center gap-2">
-              <button type="button" onClick={() => { onChange(relPath); onClose() }}
-                className={`flex-1 text-left px-2 py-1 rounded text-xs transition-colors ${isSelected ? 'bg-orange-500 text-white' : 'hover:bg-[--color-surface-2] text-[--color-text-primary]'}`}>
-                📁 {d}
-              </button>
-              <button type="button" onClick={() => loadDir(fullPath)}
-                className="px-2 py-1 rounded text-xs border border-[--color-border-strong] bg-[--color-surface-2] text-[--color-text-muted] hover:text-orange-500">→</button>
-            </div>
+            <button key={d} type="button" onClick={() => loadDir(fullPath)}
+              className="text-left px-2 py-1 rounded text-xs transition-colors hover:bg-[--color-surface-2] text-[--color-text-primary]">
+              📁 {d}
+            </button>
           )
         })}
       </div>
+      <div className="flex gap-2">
+        <button type="button" onClick={selectCurrentDir}
+          className="flex-1 px-3 py-2 rounded text-sm font-medium bg-[--color-accent] text-white hover:opacity-90">
+          Select This Folder
+        </button>
+        <button type="button" onClick={onClose}
+          className="px-3 py-2 rounded text-sm border border-[--color-border-strong] bg-[--color-surface-2] text-[--color-text-muted] hover:text-white">Cancel</button>
+      </div>
       <div>
         <label className="text-xs text-[--color-text-muted] uppercase tracking-wider block mb-1">Custom path</label>
-        <input type="text" value={custom} onChange={(e) => setCustom(e.target.value)}
-          placeholder="recordings" className={inputCls} onKeyDown={(e) => { if (e.key === 'Enter') { onChange(custom); onClose() } }} />
-        <button type="button" onClick={() => { onChange(custom); onClose() }}
-          className="mt-2 px-3 py-1 text-xs rounded border border-[--color-border-strong] bg-[--color-surface-2] text-[--color-text-primary] hover:border-orange-500">Use</button>
+        <div className="flex gap-2">
+          <input type="text" value={custom} onChange={(e) => setCustom(e.target.value)}
+            placeholder="recordings" className={inputCls + ' flex-1'} onKeyDown={(e) => { if (e.key === 'Enter') { onChange(custom); onClose() } }} />
+          <button type="button" onClick={() => { onChange(custom); onClose() }}
+            className="px-3 py-2 rounded text-xs border border-[--color-border-strong] bg-[--color-surface-2] text-[--color-text-primary] hover:border-orange-500">Use</button>
+        </div>
       </div>
     </div>
   )
