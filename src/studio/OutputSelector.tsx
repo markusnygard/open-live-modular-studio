@@ -65,6 +65,8 @@ function OutputDropdown({ group, productionId, onStatusChange }: {
     : hasError ? 'bg-amber-700 border-amber-600 text-white'
     : 'bg-zinc-800 border-zinc-600 text-zinc-400'
 
+  const isInline = new Set(['whep', 'ndi', 'sdi']).has(group.type)
+
   const toggleOutput = (id: string) => {
     setSelected(prev => {
       const next = new Set(prev)
@@ -121,18 +123,19 @@ function OutputDropdown({ group, productionId, onStatusChange }: {
         <div className="absolute top-full left-0 mt-1 bg-zinc-900 border border-zinc-700 rounded shadow-lg z-50 min-w-[180px]">
           <div className="max-h-48 overflow-y-auto">
             {group.outputs.map(o => (
-              <label key={o.id} className="flex items-center gap-1.5 px-3 py-1.5 hover:bg-zinc-800 cursor-pointer text-[10px]">
-                <input
+              <label key={o.id} className="flex items-center gap-1.5 px-3 py-1.5 hover:bg-zinc-800 text-[10px]" style={{ cursor: isInline ? 'default' : 'pointer' }}>
+                {!isInline && <input
                   type="checkbox"
                   checked={selected.size > 0 ? selected.has(o.id) : o.running}
                   onChange={() => toggleOutput(o.id)}
                   className="accent-orange-500"
-                />
+                />}
                 <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${o.running ? 'bg-green-400' : o.error ? 'bg-amber-400' : 'bg-zinc-500'}`} />
                 <span className="text-zinc-300 truncate">{o.name}</span>
               </label>
             ))}
           </div>
+          {!isInline && (
           <div className="border-t border-zinc-700 p-1.5 flex gap-1.5">
             <button
               onClick={handleStartStop}
@@ -145,6 +148,12 @@ function OutputDropdown({ group, productionId, onStatusChange }: {
             </button>
             <button onClick={() => setOpen(false)} className="px-2 py-1 rounded text-[9px] text-zinc-400 hover:text-white">✕</button>
           </div>
+          )}
+          {isInline && (
+          <div className="border-t border-zinc-700 p-1.5 flex gap-1.5">
+            <button onClick={() => setOpen(false)} className="flex-1 py-1 rounded text-[9px] text-zinc-500">auto (inline)</button>
+          </div>
+          )}
         </div>
       )}
     </div>
@@ -172,8 +181,15 @@ export function OutputSelector({ productionId }: { productionId: string | null }
         const assignedIds = new Set((production.outputAssignments ?? []).map(a => a.outputId))
         const assigned = allOutputs.filter(o => assignedIds.has(o.id) && o.outputType !== 'whep')
 
+        // Inline output types (auto-started with production, no separate flow)
+        const INLINE_TYPES = new Set(['whep', 'ndi', 'sdi'])
+
         // Check running status for each
         const withStatus = await Promise.all(assigned.map(async o => {
+          if (INLINE_TYPES.has(o.outputType)) {
+            // Inline outputs are always "running" when production is active
+            return { ...o, running: true, error: undefined as string | undefined, health: 'inline' as string }
+          }
           try {
             const s = await request<{ state: string; health?: string }>(`/api/v1/productions/${productionId}/outputs/${o.id}/status`)
             const errorMsg = s.health === 'error' ? 'Pipeline failed'
