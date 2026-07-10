@@ -149,6 +149,15 @@ function OutputDropdown({ group, productionId, onStatusChange }: {
             <button onClick={() => setOpen(false)} className="px-2 py-1 rounded text-[9px] text-zinc-400 hover:text-white">✕</button>
           </div>
           )}
+          {/* Clip Creator link for running MPEG-TS recorders */}
+          {group.type === 'recorder' && group.outputs.some(o => o.running) && (
+          <div className="border-t border-zinc-700 px-2 py-1.5">
+            <a href={`/pane/clipcreator?production=${productionId}`} target="_blank"
+              className="text-[9px] text-orange-400 hover:text-orange-300 flex items-center gap-1">
+              <span>✂️</span> Create Clips
+            </a>
+          </div>
+          )}
           {isInline && (
           <div className="border-t border-zinc-700 p-1.5 flex gap-1.5">
             <button onClick={() => setOpen(false)} className="flex-1 py-1 rounded text-[9px] text-zinc-500">auto (inline)</button>

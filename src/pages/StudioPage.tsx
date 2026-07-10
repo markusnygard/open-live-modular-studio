@@ -36,6 +36,7 @@ import '@/modules/mediaplayer'
 import '@/modules/outputs/srt-stream'
 import '@/modules/outputs/efp-stream'
 import '@/modules/outputs/recording'
+import '@/modules/clipcreator'
 import '@/modules/outputs/ndi-output'
 import '@/modules/outputs/sdi-output'
 

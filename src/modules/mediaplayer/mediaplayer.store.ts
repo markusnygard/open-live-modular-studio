@@ -2,12 +2,19 @@ import { create } from 'zustand'
 import { immer } from 'zustand/middleware/immer'
 import { devtools } from 'zustand/middleware'
 
+export interface ClipMark {
+  markIn?: number
+  markOut?: number
+}
+
 export interface PlayerState {
   state: 'playing' | 'paused' | 'stopped'
   positionMs: number
   durationMs: number
   currentFileIndex: number
   loopPlaylist: boolean
+  clipMarks?: ClipMark | null
+  allClipMarks?: Array<ClipMark | null>
 }
 
 export const DEFAULT_PLAYER_STATE: PlayerState = {

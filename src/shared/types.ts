@@ -87,6 +87,7 @@ export type OutboundMessage =
   | { type: 'MEDIAPLAYER_GOTO'; sourceId: string; index: number }
   | { type: 'MEDIAPLAYER_TOGGLE_LOOP'; sourceId: string; active: boolean }
   | { type: 'MEDIAPLAYER_SET_PLAYLIST'; sourceId: string; files: string[] }
+  | { type: 'MEDIAPLAYER_SET_MARKS'; sourceId: string; clipIndex: number; markIn?: number; markOut?: number }
   | { type: 'AUDIO_DYNAMICS_SET'; channel: number; property: string; value: number | boolean }
   | { type: 'SET_EFFECT'; target: EffectTarget; effect: VideoEffect }
   | { type: 'SET_PIP'; pip: number; bg: number | null; zones: PipZone[]; transforms?: PipTransforms }

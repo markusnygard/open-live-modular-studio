@@ -23,4 +23,7 @@ export const mediaplayerMessages = {
 
   setPlaylist: (sourceId: string, files: string[]): OutboundMessage =>
     ({ type: 'MEDIAPLAYER_SET_PLAYLIST', sourceId, files }),
+
+  setMarks: (sourceId: string, clipIndex: number, markIn?: number, markOut?: number): OutboundMessage =>
+    ({ type: 'MEDIAPLAYER_SET_MARKS', sourceId, clipIndex, markIn, markOut }),
 }
