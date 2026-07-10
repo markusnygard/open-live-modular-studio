@@ -35,7 +35,7 @@ export function Modal({ open, title, onClose, children, className }: ModalProps)
           <h2 className="text-base font-bold text-[--color-text-primary]">{title}</h2>
           <Button variant="ghost" size="sm" onClick={onClose}>✕</Button>
         </div>
-        <div className="overflow-y-auto px-6 pb-6">
+        <div className="overflow-y-auto px-6 pb-6 max-h-[80vh] min-h-0">
           {children}
         </div>
       </div>
