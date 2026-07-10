@@ -209,7 +209,7 @@ export function OutputsPanel() {
     }
     const body: Record<string, string | undefined> = {
       name: editTarget.name.trim(),
-      url: isSrt ? editTarget.url.trim() || undefined : undefined,
+      url: (isSrt || editTarget.outputType === 'sdi') ? editTarget.url.trim() || undefined : undefined,
     }
     if (editTarget.videoSource) body.videoSource = editTarget.videoSource
     if (editTarget.audioSource) body.audioSource = editTarget.audioSource
@@ -433,7 +433,7 @@ export function OutputsPanel() {
               ))}
             </select>
           </div>
-          {(newType === 'mpegtssrt' || newType === 'efpsrt' || newType === 'recorder') && (
+          {(newType === 'mpegtssrt' || newType === 'efpsrt' || newType === 'recorder' || newType === 'sdi') && (
           <div>
             <label className="text-xs text-[--color-text-muted] uppercase tracking-wider block mb-1">Audio Source</label>
             <select value={newAudioSource} onChange={(e) => setNewAudioSource(e.target.value)}
@@ -523,7 +523,7 @@ export function OutputsPanel() {
                 <option value="pgm_clean">Clean PGM (no DSK)</option>
               </select>
             </div>
-            {(editTarget.outputType === 'mpegtssrt' || editTarget.outputType === 'efpsrt' || editTarget.outputType === 'recorder') && (
+            {(editTarget.outputType === 'mpegtssrt' || editTarget.outputType === 'efpsrt' || editTarget.outputType === 'recorder' || editTarget.outputType === 'sdi') && (
             <div>
               <label className="text-xs text-[--color-text-muted] uppercase tracking-wider block mb-1">Audio Source</label>
               <select value={editTarget.audioSource || 'pgm'} onChange={(e) => setEditTarget({ ...editTarget, audioSource: e.target.value })}
