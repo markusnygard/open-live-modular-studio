@@ -192,7 +192,7 @@ export function OutputsPanel() {
     if (selectedProdId && newAudioSource) body.audioSource = newAudioSource
     if (newType === 'recorder') {
       body.outputDir = newOutputDir
-      body.container = newContainer
+      body.preset = newContainer  // newContainer holds the preset key
     }
     await addOutput(body as { name: string; outputType: OutputType; url?: string; outputDir?: string; container?: string; audioSource?: string; videoSource?: string })
     resetAdd()
@@ -383,12 +383,14 @@ export function OutputsPanel() {
           {newType === 'recorder' && (
           <div className="flex flex-col gap-3">
             <div>
-              <label className="text-xs text-[--color-text-muted] uppercase tracking-wider block mb-1">Container</label>
+              <label className="text-xs text-[--color-text-muted] uppercase tracking-wider block mb-1">Recording Format</label>
               <select value={newContainer} onChange={(e) => setNewContainer(e.target.value)}
                 className="w-full px-3 py-2 rounded bg-[--color-surface-raised] border border-[--color-border-strong] text-sm text-[--color-text-primary] focus:outline-none focus:border-orange-500">
-                <option value="mp4">MP4</option>
-                <option value="mkv">Matroska (MKV)</option>
-                <option value="mpegts">MPEG-TS</option>
+                <option value="mp4_h264_nvenc">MP4 (H.264 NVENC, AAC) — Streaming</option>
+                <option value="mp4_h264_x264">MP4 (H.264 software, AAC) — Fallback</option>
+                <option value="prores_422_hq">ProRes 422 HQ (MOV) — Premiere / Resolve</option>
+                <option value="prores_422_lt">ProRes 422 LT (MOV) — Media Composer</option>
+                <option value="mpegts_h264">MPEG-TS (H.264, AAC) — Watch while record</option>
               </select>
             </div>
             <div>
@@ -500,12 +502,14 @@ export function OutputsPanel() {
             {editTarget.outputType === 'recorder' && (
             <div className="flex flex-col gap-3">
               <div>
-                <label className="text-xs text-[--color-text-muted] uppercase tracking-wider block mb-1">Container</label>
-                <select value={editTarget.container || 'mp4'} onChange={(e) => setEditTarget({ ...editTarget, container: e.target.value })}
+                <label className="text-xs text-[--color-text-muted] uppercase tracking-wider block mb-1">Recording Format</label>
+                <select value={editTarget.container || 'mp4_h264_nvenc'} onChange={(e) => setEditTarget({ ...editTarget, container: e.target.value })}
                   className="w-full px-3 py-2 rounded bg-[--color-surface-raised] border border-[--color-border-strong] text-sm text-[--color-text-primary] focus:outline-none focus:border-orange-500">
-                  <option value="mp4">MP4</option>
-                  <option value="mkv">MKV</option>
-                  <option value="mpegts">MPEG-TS</option>
+                  <option value="mp4_h264_nvenc">MP4 (H.264 NVENC, AAC) — Streaming</option>
+                  <option value="mp4_h264_x264">MP4 (H.264 software, AAC) — Fallback</option>
+                  <option value="prores_422_hq">ProRes 422 HQ (MOV) — Premiere / Resolve</option>
+                  <option value="prores_422_lt">ProRes 422 LT (MOV) — Media Composer</option>
+                  <option value="mpegts_h264">MPEG-TS (H.264, AAC) — Watch while record</option>
                 </select>
               </div>
               <div>
