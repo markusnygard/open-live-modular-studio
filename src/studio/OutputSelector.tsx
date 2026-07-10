@@ -65,7 +65,7 @@ function OutputDropdown({ group, productionId, onStatusChange }: {
     : hasError ? 'bg-amber-700 border-amber-600 text-white'
     : 'bg-zinc-800 border-zinc-600 text-zinc-400'
 
-  const isInline = new Set(['whep', 'sdi']).has(group.type)
+  const isInline = new Set(['whep', 'ndi', 'sdi']).has(group.type)
 
   const toggleOutput = (id: string) => {
     setSelected(prev => {
@@ -182,7 +182,7 @@ export function OutputSelector({ productionId }: { productionId: string | null }
         const assigned = allOutputs.filter(o => assignedIds.has(o.id) && o.outputType !== 'whep')
 
         // Inline output types (auto-started with production, no separate flow)
-        const INLINE_TYPES = new Set(['whep', 'sdi'])
+        const INLINE_TYPES = new Set(['whep', 'ndi', 'sdi'])
 
         // Check running status for each
         const withStatus = await Promise.all(assigned.map(async o => {
