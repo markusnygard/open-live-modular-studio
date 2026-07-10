@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/Button'
 import { Modal } from '@/components/ui/Modal'
 import { StatusDot } from '@/components/ui/StatusDot'
 
-const MEDIA_ROOT = '/data/media'
+const MEDIA_ROOT = '/host/media'
 
 // Directory browser for recorder output — starts at /data/media
 function DirPicker({ value, onChange, onClose }: { value: string; onChange: (d: string) => void; onClose: () => void }) {
