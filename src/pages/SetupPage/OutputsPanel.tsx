@@ -112,9 +112,9 @@ export function OutputsPanel() {
 
   useEffect(() => {
     capabilitiesApi.get().then((caps) => {
-      setCreatableTypes(['mpegtssrt', 'efpsrt', ...(caps.ndi ? ['ndi' as OutputType] : []), ...(caps.sdi ? ['sdi' as OutputType] : [])])
+      setCreatableTypes(['mpegtssrt', 'efpsrt', 'recorder', ...(caps.ndi ? ['ndi' as OutputType] : []), ...(caps.sdi ? ['sdi' as OutputType] : [])])
       setSdiDevices(caps.sdiDevices > 0 ? caps.sdiDevices : 4)
-    }).catch(() => setCreatableTypes(['mpegtssrt', 'efpsrt', 'ndi', 'sdi']))
+    }).catch(() => setCreatableTypes(['mpegtssrt', 'efpsrt', 'recorder', 'ndi', 'sdi']))
   }, [])
 
   const activeOutputIds = new Set(
@@ -140,6 +140,7 @@ export function OutputsPanel() {
   const [selectedProdId, setSelectedProdId] = useState('')
   const [prodSources, setProdSources] = useState<Array<{ sourceId: string; mixerInput: string; name: string }>>([])
   const [dirPickerOpen, setDirPickerOpen] = useState(false)
+  const [editDirPickerOpen, setEditDirPickerOpen] = useState(false)
 
   useEffect(() => {
     if (!selectedProdId) { setProdSources([]); return }
@@ -215,7 +216,7 @@ export function OutputsPanel() {
     if (editTarget.audioSource) body.audioSource = editTarget.audioSource
     if (editTarget.outputType === 'recorder') {
       body.outputDir = editTarget.outputDir
-      body.container = editTarget.container
+      body.preset = editTarget.container  // container field holds the preset key
     }
     await updateOutput(editTarget.id, body as { name?: string; url?: string })
     setEditUrlError(null)
@@ -514,9 +515,23 @@ export function OutputsPanel() {
               </div>
               <div>
                 <label className="text-xs text-[--color-text-muted] uppercase tracking-wider block mb-1">Output Directory</label>
-                <input type="text" value={editTarget.outputDir || ''} onChange={(e) => setEditTarget({ ...editTarget, outputDir: e.target.value })}
-                  placeholder="recordings" className={inputCls} />
+                <div className="flex gap-2">
+                  <input type="text" value={editTarget.outputDir || ''} onChange={(e) => setEditTarget({ ...editTarget, outputDir: e.target.value })}
+                    placeholder="recordings" className={inputCls + ' flex-1'} />
+                  <button type="button" onClick={() => setEditDirPickerOpen(true)}
+                    className="px-3 py-2 rounded border border-[--color-border-strong] bg-[--color-surface-2] text-xs text-[--color-text-muted] hover:text-orange-500 whitespace-nowrap">Browse...</button>
+                </div>
               </div>
+              {editDirPickerOpen && (
+              <div className="border border-[--color-border-strong] rounded p-3 bg-[--color-surface-raised]">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs text-[--color-text-muted]">Choose Directory</span>
+                  <button type="button" onClick={() => setEditDirPickerOpen(false)}
+                    className="text-[--color-text-muted] hover:text-[--color-red] text-lg leading-none">&times;</button>
+                </div>
+                <DirPicker value={editTarget.outputDir || ''} onChange={(d) => { setEditTarget({ ...editTarget, outputDir: d }); setEditDirPickerOpen(false) }} onClose={() => setEditDirPickerOpen(false)} />
+              </div>
+              )}
             </div>
             )}
             <div>
