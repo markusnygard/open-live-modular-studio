@@ -39,6 +39,20 @@ function MediaPlayerPopupCard({ mp, send, productionId, whepUrl, tally }: { mp: 
   const markOutSent = useRef(false)
   const previewVideoRef = useRef<HTMLVideoElement>(null)
   const [holdOn, setHoldOn] = useState(false)
+  const holdPgmTriggered = useRef(false)
+
+  // Hold: auto-play when source goes to PGM
+  useEffect(() => {
+    if (tally === 'pgm' && holdOn && !holdPgmTriggered.current && playerState.state === 'stopped') {
+      holdPgmTriggered.current = true
+      handlePlay()
+      // Reset trigger when clip stops or tally changes
+      setTimeout(() => { holdPgmTriggered.current = false }, 1000)
+    }
+    if (tally !== 'pgm') {
+      holdPgmTriggered.current = false
+    }
+  }, [tally, holdOn])
 
   const [mpStream, setMpStream] = useState<MediaStream | null>(null)
   const whepRef = useRef<WhepClient | null>(null)
