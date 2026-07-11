@@ -3,7 +3,6 @@ import type { SendFn } from '@/studio/types'
 import { request } from '@/shared/api'
 import { useMediaPlayerStore, DEFAULT_PLAYER_STATE, type PlayerState } from './mediaplayer.store'
 import { mediaplayerMessages as M } from './mediaplayer.messages'
-import { useTallyLight } from '@/hooks/useTallyLight'
 import { WhepClient } from '@/lib/webrtc'
 
 interface RawProduction { sources?: Array<{ sourceId: string; mixerInput: string }> }
@@ -20,7 +19,7 @@ function fmtTime(ms: number): string {
   return `${m}:${sec.toString().padStart(2, '0')}`
 }
 
-function MediaPlayerPopupCard({ mp, send, productionId, whepUrl }: { mp: MediaPlayerSource; send: SendFn; productionId: string | null; whepUrl: string | null }) {
+function MediaPlayerPopupCard({ mp, send, productionId, whepUrl, tally }: { mp: MediaPlayerSource; send: SendFn; productionId: string | null; whepUrl: string | null; tally: 'pgm' | 'pvw' | 'off' }) {
   const playerPlaylist = useMediaPlayerStore((s) => s.playlists[mp.id] ?? EMPTY_PLAYLIST)
   const playerState = useMediaPlayerStore((s) => s.playerStates[mp.id] ?? DEFAULT_PLAYER_STATE)
   const loopOn = useMediaPlayerStore((s) => s.loopOn[mp.id] ?? false)
@@ -28,7 +27,6 @@ function MediaPlayerPopupCard({ mp, send, productionId, whepUrl }: { mp: MediaPl
   const setPlaylist = useMediaPlayerStore((s) => s.setPlaylist)
   const setPlayerState = useMediaPlayerStore((s) => s.setPlayerState)
   const setLoop = useMediaPlayerStore((s) => s.setLoop)
-  const tally = useTallyLight(mp.id)
 
   const [showBrowser, setShowBrowser] = useState(false)
   const [browserPath, setBrowserPath] = useState('host/media')
@@ -132,8 +130,12 @@ function MediaPlayerPopupCard({ mp, send, productionId, whepUrl }: { mp: MediaPl
       send(M.goto(mp.id, 0))
       playlistDirty.current = false
     } else {
-      const ms = marks?.markIn != null ? marks.markIn * 1000 : 0
-      send(M.seek(mp.id, ms))
+      send(M.control(mp.id, 'play'))
+      setTimeout(() => {
+        const ms = marks?.markIn != null ? marks.markIn * 1000 : 0
+        if (ms > 0) send(M.seek(mp.id, ms))
+      }, 200)
+      return
     }
     send(M.control(mp.id, 'play'))
   }
@@ -153,10 +155,14 @@ function MediaPlayerPopupCard({ mp, send, productionId, whepUrl }: { mp: MediaPl
         )}
       </div>
 
-      {/* Scrubber */}
-      {playerState.state === 'playing' && durationSec > 0 && (
+      {/* Scrubber — always visible when clip loaded, pauses during drag */}
+      {playerState.durationMs > 0 && (
         <div className="mb-2">
           <input type="range" min={0} max={durationSec * 1000} value={displayPosition}
+            onPointerDown={() => {
+              // Pause playback during scrub
+              if (playerState.state === 'playing') send(M.control(mp.id, 'pause'))
+            }}
             onChange={(e) => {
               const pos = Number(e.target.value)
               const realPos = marks?.markIn != null ? pos + marks.markIn * 1000 : pos
@@ -282,21 +288,37 @@ function MediaPlayerPopupCard({ mp, send, productionId, whepUrl }: { mp: MediaPl
 export function MediaPlayerPopup({ send, productionId }: { send: SendFn; productionId: string | null }) {
   const [mediaPlayers, setMediaPlayers] = useState<MediaPlayerSource[]>([])
   const [mpWhepUrls, setMpWhepUrls] = useState<Record<string, string>>({})
+  const [tallyMap, setTallyMap] = useState<Record<string, 'pgm' | 'pvw' | 'off'>>({})
 
-  // Fetch per-media-player WHEP URLs from production
+  // Fetch per-media-player WHEP URLs + tally from production
   useEffect(() => {
     if (!productionId) return
-    request<{ whepOutputUrls?: Array<{ outputId: string; url: string }> }>(`/api/v1/productions/${productionId}`)
-      .then(d => {
-        const map: Record<string, string> = {}
-        for (const entry of d.whepOutputUrls ?? []) {
-          if (entry.outputId.startsWith('__mpwhep__')) {
-            const sourceId = entry.outputId.replace('__mpwhep__', '')
-            map[sourceId] = entry.url
+    const poll = () => {
+      request<{ whepOutputUrls?: Array<{ outputId: string; url: string }>; tally?: { pgm?: string; pvw?: string }; sources?: Array<{ sourceId: string; mixerInput: string }> }>(`/api/v1/productions/${productionId}`)
+        .then(d => {
+          const map: Record<string, string> = {}
+          for (const entry of d.whepOutputUrls ?? []) {
+            if (entry.outputId.startsWith('__mpwhep__')) {
+              const sourceId = entry.outputId.replace('__mpwhep__', '')
+              map[sourceId] = entry.url
+            }
           }
-        }
-        setMpWhepUrls(map)
-      }).catch(() => {})
+          setMpWhepUrls(map)
+          // Build tally from production sources
+          const tal: Record<string, 'pgm' | 'pvw' | 'off'> = {}
+          const pgm = d.tally?.pgm
+          const pvw = d.tally?.pvw
+          for (const s of d.sources ?? []) {
+            if (s.mixerInput === pgm) tal[s.sourceId] = 'pgm'
+            else if (s.mixerInput === pvw) tal[s.sourceId] = 'pvw'
+            else tal[s.sourceId] = 'off'
+          }
+          setTallyMap(tal)
+        }).catch(() => {})
+    }
+    void poll()
+    const id = setInterval(poll, 2000)
+    return () => clearInterval(id)
   }, [productionId])
 
   // Fetch media player sources
@@ -334,7 +356,7 @@ export function MediaPlayerPopup({ send, productionId }: { send: SendFn; product
         ) : (
           <div className="flex flex-col gap-3 max-w-[380px] mx-auto">
             {mediaPlayers.map((mp) => (
-              <MediaPlayerPopupCard key={mp.id} mp={mp} send={send} productionId={productionId} whepUrl={mpWhepUrls[mp.id] || null} />
+              <MediaPlayerPopupCard key={mp.id} mp={mp} send={send} productionId={productionId} whepUrl={mpWhepUrls[mp.id] || null} tally={tallyMap[mp.id] || 'off'} />
             ))}
           </div>
         )}

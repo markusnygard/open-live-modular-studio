@@ -139,9 +139,14 @@ function MediaPlayerCard({ mp, send, productionId }: { mp: MediaPlayerSource; se
                 send(M.goto(mp.id, 0))
                 playlistDirty.current = false
               } else {
-                // Seek to markIn if set, else 0
-                const ms = marks?.markIn != null ? marks.markIn * 1000 : 0
-                send(M.seek(mp.id, ms))
+                // Send play first, then seek to markIn after a short delay
+                // so the player pipeline is ready for the seek command.
+                send(M.control(mp.id, 'play'))
+                setTimeout(() => {
+                  const ms = marks?.markIn != null ? marks.markIn * 1000 : 0
+                  if (ms > 0) send(M.seek(mp.id, ms))
+                }, 200)
+                return
               }
               send(M.control(mp.id, 'play'))
             }}>▶</button>
@@ -163,10 +168,10 @@ function MediaPlayerCard({ mp, send, productionId }: { mp: MediaPlayerSource; se
         </div>
         <div className="flex gap-1 ml-auto">
           <button type="button" onClick={() => { setLoop(mp.id, !loopOn); send(M.toggleLoop(mp.id, !loopOn)) }}
-            className={`px-2 py-1 rounded text-[10px] font-semibold border bg-transparent ${loopOn ? 'text-green-400 border-green-400' : 'text-zinc-500 border-zinc-600 hover:text-green-400'}`}
+            className={`px-1.5 py-1 rounded text-[9px] font-semibold border bg-transparent ${loopOn ? 'text-green-400 border-green-400' : 'text-zinc-500 border-zinc-600 hover:text-green-400'}`}
             title="Loop playlist">↺</button>
           <button type="button" onClick={() => { if (!showBrowser) loadBrowser('host/media'); setShowBrowser(!showBrowser) }}
-            className={`px-2 py-1 rounded text-[10px] font-semibold border bg-transparent ${showBrowser ? 'text-orange-400 border-orange-400' : 'text-zinc-400 border-zinc-600'}`}
+            className={`px-1.5 py-1 rounded text-[9px] font-semibold border bg-transparent ${showBrowser ? 'text-orange-400 border-orange-400' : 'text-zinc-400 border-zinc-600'}`}
             title="Browse files">📁</button>
         </div>
       </div>
