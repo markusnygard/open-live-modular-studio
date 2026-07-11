@@ -55,7 +55,7 @@ export function WsProvider({ productionId, eventBus, children }: {
       }
     }
 
-    ws.onopen = () => { retryCount.current = 0 }
+    ws.onopen = () => { retryCount.current = 0; console.log('[WsProvider] connected') }
   }, [productionId])
 
   useEffect(() => {
@@ -69,6 +69,8 @@ export function WsProvider({ productionId, eventBus, children }: {
   const send: SendFn = useCallback((msg) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify(msg))
+    } else {
+      console.warn('[WsProvider] send dropped (not open):', msg.type, wsRef.current?.readyState)
     }
   }, [])
 
