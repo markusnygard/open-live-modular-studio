@@ -38,6 +38,7 @@ function MediaPlayerPopupCard({ mp, send, productionId, whepUrl, tally }: { mp: 
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const markOutSent = useRef(false)
   const previewVideoRef = useRef<HTMLVideoElement>(null)
+  const [holdOn, setHoldOn] = useState(false)
 
   const [mpStream, setMpStream] = useState<MediaStream | null>(null)
   const whepRef = useRef<WhepClient | null>(null)
@@ -122,7 +123,7 @@ function MediaPlayerPopupCard({ mp, send, productionId, whepUrl, tally }: { mp: 
     : marks?.markIn != null ? playerState.durationMs - marks.markIn * 1000 : playerState.durationMs
   const durationSec = displayDuration / 1000
 
-  const tallyRing = tally === 'pgm' ? 'ring-2 ring-green-500' : tally === 'pvw' ? 'ring-2 ring-amber-500' : 'ring-1 ring-zinc-700'
+  const tallyRing = tally === 'pgm' ? 'ring-2 ring-red-500' : tally === 'pvw' ? 'ring-2 ring-green-500' : 'ring-1 ring-zinc-700'
 
   const handlePlay = () => {
     if (playlistDirty.current && playerPlaylist.length > 0) {
@@ -146,7 +147,7 @@ function MediaPlayerPopupCard({ mp, send, productionId, whepUrl, tally }: { mp: 
       <div className={`relative bg-black rounded overflow-hidden mb-2 ${tallyRing}`}>
         <video ref={previewVideoRef} className="w-full aspect-video object-contain bg-black" autoPlay playsInline muted />
         {tally !== 'off' && (
-          <div className={`absolute top-1 left-1 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase ${tally === 'pgm' ? 'bg-green-600 text-white' : 'bg-amber-600 text-white'}`}>
+          <div className={`absolute top-1 left-1 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase ${tally === 'pgm' ? 'bg-red-600 text-white' : 'bg-green-600 text-white'}`}>
             {tally}
           </div>
         )}
@@ -198,6 +199,10 @@ function MediaPlayerPopupCard({ mp, send, productionId, whepUrl, tally }: { mp: 
           <button type="button"
             className="px-2 py-1 rounded text-[10px] font-semibold text-blue-400 border border-zinc-700 bg-transparent hover:bg-blue-950"
             onClick={() => send(M.control(mp.id, 'next'))}>⏭</button>
+          <button type="button"
+            className={`px-2 py-1 rounded text-[10px] font-semibold border ${holdOn ? 'text-orange-400 bg-orange-950/50 border-orange-600' : 'text-zinc-500 border-zinc-700 hover:text-orange-400'}`}
+            onClick={() => { const next = !holdOn; setHoldOn(next); send(M.hold(mp.id, next)) }}
+            title="Auto-play on PGM with fade">HOLD</button>
         </div>
         <div className="flex gap-1 ml-auto">
           <button type="button"

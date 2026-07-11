@@ -26,4 +26,7 @@ export const mediaplayerMessages = {
 
   setMarks: (sourceId: string, clipIndex: number, markIn?: number, markOut?: number): OutboundMessage =>
     ({ type: 'MEDIAPLAYER_SET_MARKS', sourceId, clipIndex, markIn, markOut }),
+
+  hold: (sourceId: string, active: boolean): OutboundMessage =>
+    ({ type: 'MEDIAPLAYER_HOLD', sourceId, active }),
 }
