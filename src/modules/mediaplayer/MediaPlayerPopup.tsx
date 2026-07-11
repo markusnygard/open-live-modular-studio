@@ -3,34 +3,23 @@ import type { SendFn } from '@/studio/types'
 import { request } from '@/shared/api'
 import { useMediaPlayerStore, DEFAULT_PLAYER_STATE, type PlayerState } from './mediaplayer.store'
 import { mediaplayerMessages as M } from './mediaplayer.messages'
+import { useTallyLight } from '@/hooks/useTallyLight'
 
-// ── Raw API shapes (subset) ─────────────────────────────────────────────────────
-interface RawProduction {
-  sources?: Array<{ sourceId: string; mixerInput: string }>
-}
-interface RawSource {
-  id: string
-  name: string
-  streamType?: string
-  playlist?: string[]
-}
-interface MediaPlayerSource {
-  id: string
-  name: string
-  playlist?: string[]
-}
+interface RawProduction { sources?: Array<{ sourceId: string; mixerInput: string }> }
+interface RawSource { id: string; name: string; streamType?: string; playlist?: string[]; address?: string }
+interface MediaPlayerSource { id: string; name: string; playlist?: string[]; address?: string }
 
-// Stable references so store selectors don't trigger render loops on the fallback.
 const EMPTY_PLAYLIST: string[] = []
 
 function fmtTime(ms: number): string {
+  if (ms < 0) ms = 0
   const s = Math.floor(ms / 1000)
   const m = Math.floor(s / 60)
   const sec = s % 60
   return `${m}:${sec.toString().padStart(2, '0')}`
 }
 
-function MediaPlayerCard({ mp, send, productionId }: { mp: MediaPlayerSource; send: SendFn; productionId: string | null }) {
+function MediaPlayerPopupCard({ mp, send, productionId }: { mp: MediaPlayerSource; send: SendFn; productionId: string | null }) {
   const playerPlaylist = useMediaPlayerStore((s) => s.playlists[mp.id] ?? EMPTY_PLAYLIST)
   const playerState = useMediaPlayerStore((s) => s.playerStates[mp.id] ?? DEFAULT_PLAYER_STATE)
   const loopOn = useMediaPlayerStore((s) => s.loopOn[mp.id] ?? false)
@@ -38,6 +27,7 @@ function MediaPlayerCard({ mp, send, productionId }: { mp: MediaPlayerSource; se
   const setPlaylist = useMediaPlayerStore((s) => s.setPlaylist)
   const setPlayerState = useMediaPlayerStore((s) => s.setPlayerState)
   const setLoop = useMediaPlayerStore((s) => s.setLoop)
+  const tally = useTallyLight(mp.id)
 
   const [showBrowser, setShowBrowser] = useState(false)
   const [browserPath, setBrowserPath] = useState('host/media')
@@ -48,11 +38,20 @@ function MediaPlayerCard({ mp, send, productionId }: { mp: MediaPlayerSource; se
   const playlistDirty = useRef(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const markOutSent = useRef(false)
+  const videoRef = useRef<HTMLVideoElement>(null)
 
-  // Seed the playlist from the source record on first mount.
+  // WHEP preview: show PGM stream since media player feeds into vision mixer
+  const [whepUrl, setWhepUrl] = useState<string | null>(null)
+  useEffect(() => {
+    if (!productionId) return
+    request<{ pgmWhepEndpoint?: string }>(`/api/v1/productions/${productionId}`)
+      .then(d => {
+        const raw = d.pgmWhepEndpoint || null
+        setWhepUrl(raw ? raw.replace('localhost', window.location.hostname) : null)
+      }).catch(() => {})
+  }, [productionId])
+
   useEffect(() => { initPlaylist(mp.id, mp.playlist ?? []) }, [mp.id, mp.playlist, initPlaylist])
-
-  // Keep loop button state in sync with the player (loop is live in Strom).
   useEffect(() => { setLoop(mp.id, playerState.loopPlaylist) }, [mp.id, playerState.loopPlaylist, setLoop])
 
   const loadBrowser = (p: string) => {
@@ -86,8 +85,6 @@ function MediaPlayerCard({ mp, send, productionId }: { mp: MediaPlayerSource; se
             allClipMarks: data.allClipMarks ?? [],
           }
           setPlayerState(mp.id, next)
-
-          // Auto-stop at markOut
           const mk = data.clipMarks
           if (mk?.markOut != null && data.state === 'playing') {
             const markOutMs = mk.markOut * 1000
@@ -96,9 +93,7 @@ function MediaPlayerCard({ mp, send, productionId }: { mp: MediaPlayerSource; se
               markOutSent.current = true
               send(M.control(mp.id, 'stop'))
             }
-          } else {
-            markOutSent.current = false
-          }
+          } else { markOutSent.current = false }
         }
       } catch {}
     }
@@ -107,19 +102,47 @@ function MediaPlayerCard({ mp, send, productionId }: { mp: MediaPlayerSource; se
     return () => { if (pollRef.current) clearInterval(pollRef.current) }
   }, [productionId, mp.id, setPlayerState, send])
 
-  // Position adjusted for markIn offset
-  const displayPosition = marks?.markIn != null
-    ? playerState.positionMs - marks.markIn * 1000
-    : playerState.positionMs
+  const displayPosition = marks?.markIn != null ? playerState.positionMs - marks.markIn * 1000 : playerState.positionMs
   const displayDuration = marks?.markOut != null
     ? (marks.markOut - (marks.markIn ?? 0)) * 1000
-    : marks?.markIn != null
-      ? playerState.durationMs - marks.markIn * 1000
-      : playerState.durationMs
+    : marks?.markIn != null ? playerState.durationMs - marks.markIn * 1000 : playerState.durationMs
+  const durationSec = displayDuration / 1000
+
+  const tallyRing = tally === 'pgm' ? 'ring-2 ring-green-500' : tally === 'pvw' ? 'ring-2 ring-amber-500' : 'ring-1 ring-zinc-700'
 
   return (
     <div className="bg-[#0b0f14] border border-zinc-800 rounded p-2 text-[11px]">
-      {/* Header with name + status dot */}
+      {/* WHEP video window with tally ring */}
+      <div className={`relative bg-black rounded overflow-hidden mb-2 ${tallyRing}`}>
+        <video ref={videoRef} className="w-full aspect-video object-contain bg-black"
+          src={whepUrl || undefined}
+          autoPlay playsInline muted />
+        {tally !== 'off' && (
+          <div className={`absolute top-1 left-1 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase ${tally === 'pgm' ? 'bg-green-600 text-white' : 'bg-amber-600 text-white'}`}>
+            {tally}
+          </div>
+        )}
+        {!whepUrl && (
+          <div className="absolute inset-0 flex items-center justify-center text-zinc-600 text-[10px]">PGM offline</div>
+        )}
+      </div>
+
+      {/* Scrubber */}
+      {playerState.state === 'playing' && durationSec > 0 && (
+        <div className="mb-2">
+          <input type="range" min={0} max={durationSec * 1000} value={displayPosition}
+            onChange={(e) => {
+              const pos = Number(e.target.value)
+              const realPos = marks?.markIn != null ? pos + marks.markIn * 1000 : pos
+              send(M.seek(mp.id, realPos))
+            }}
+            className="w-full h-1.5 appearance-none bg-zinc-700 rounded-full cursor-pointer
+              [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-3 [&::-webkit-slider-thumb]:h-3 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-orange-500
+              [&::-moz-range-thumb]:w-3 [&::-moz-range-thumb]:h-3 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-orange-500 [&::-moz-range-thumb]:border-0" />
+        </div>
+      )}
+
+      {/* Header with name + time */}
       <div className="flex items-center gap-1.5 mb-2">
         <span className={`w-2 h-2 rounded-full shrink-0 ${playerState.state === 'playing' ? 'bg-green-500' : playerState.state === 'paused' ? 'bg-amber-500' : 'bg-zinc-500'}`} />
         <span className="font-semibold text-white text-xs truncate">{mp.name}</span>
@@ -128,32 +151,19 @@ function MediaPlayerCard({ mp, send, productionId }: { mp: MediaPlayerSource; se
         )}
       </div>
 
-      {/* Transport row: ▶⏸⏹⏭ on left, IN/OUT on right */}
-      <div className="flex items-center gap-1 mb-2">
+      {/* Transport + IN/OUT + loop + browser */}
+      <div className="flex items-center gap-1 mb-2 flex-wrap">
         <div className="flex gap-1">
           <button type="button"
             className={`px-2 py-1 rounded text-[10px] font-semibold text-green-400 border bg-transparent hover:bg-green-950 ${playerState.state === 'playing' ? 'border-green-400' : 'border-zinc-700'}`}
             onClick={() => {
-              if (playlistDirty.current && playerPlaylist.length > 0) {
-                send(M.setPlaylist(mp.id, playerPlaylist))
-                send(M.goto(mp.id, 0))
-                playlistDirty.current = false
-              } else {
-                // Seek to markIn if set, else 0
-                const ms = marks?.markIn != null ? marks.markIn * 1000 : 0
-                send(M.seek(mp.id, ms))
-              }
+              if (playlistDirty.current && playerPlaylist.length > 0) { send(M.setPlaylist(mp.id, playerPlaylist)); send(M.goto(mp.id, 0)); playlistDirty.current = false }
+              else { const ms = marks?.markIn != null ? marks.markIn * 1000 : 0; send(M.seek(mp.id, ms)) }
               send(M.control(mp.id, 'play'))
             }}>▶</button>
           <button type="button"
             className={`px-2 py-1 rounded text-[10px] font-semibold text-amber-400 border bg-transparent hover:bg-amber-950 ${playerState.state === 'paused' ? 'border-amber-400' : 'border-zinc-700'}`}
-            onClick={() => {
-              if (playerState.state === 'paused') {
-                send(M.control(mp.id, 'play'))
-              } else {
-                send(M.control(mp.id, 'pause'))
-              }
-            }}>⏸</button>
+            onClick={() => { playerState.state === 'paused' ? send(M.control(mp.id, 'play')) : send(M.control(mp.id, 'pause')) }}>⏸</button>
           <button type="button"
             className={`px-2 py-1 rounded text-[10px] font-semibold text-red-400 border bg-transparent hover:bg-red-950 ${playerState.state === 'stopped' ? 'border-red-400' : 'border-zinc-700'}`}
             onClick={() => send(M.control(mp.id, 'stop'))}>⏹</button>
@@ -162,6 +172,18 @@ function MediaPlayerCard({ mp, send, productionId }: { mp: MediaPlayerSource; se
             onClick={() => send(M.control(mp.id, 'next'))}>⏭</button>
         </div>
         <div className="flex gap-1 ml-auto">
+          <button type="button"
+            className={`px-1.5 py-1 rounded text-[9px] font-semibold border ${marks?.markIn != null ? 'text-green-400 border-green-600 bg-green-950/50' : 'text-zinc-500 border-zinc-700 bg-transparent hover:text-green-400'}`}
+            onClick={() => { const nowSec = playerState.positionMs / 1000; send(M.setMarks(mp.id, playerState.currentFileIndex, nowSec, marks?.markOut)) }}
+            title="Set Mark IN at current position">IN</button>
+          <button type="button"
+            className={`px-1.5 py-1 rounded text-[9px] font-semibold border ${marks?.markOut != null ? 'text-red-400 border-red-600 bg-red-950/50' : 'text-zinc-500 border-zinc-700 bg-transparent hover:text-red-400'}`}
+            onClick={() => { const nowSec = playerState.positionMs / 1000; send(M.setMarks(mp.id, playerState.currentFileIndex, marks?.markIn, nowSec)) }}
+            title="Set Mark OUT at current position">OUT</button>
+          {(marks?.markIn != null || marks?.markOut != null) && (
+            <button type="button" className="px-1.5 py-1 rounded text-[9px] text-zinc-600 border border-zinc-700 bg-transparent hover:text-white"
+              onClick={() => send(M.setMarks(mp.id, playerState.currentFileIndex, undefined, undefined))} title="Clear marks">✕</button>
+          )}
           <button type="button" onClick={() => { setLoop(mp.id, !loopOn); send(M.toggleLoop(mp.id, !loopOn)) }}
             className={`px-2 py-1 rounded text-[10px] font-semibold border bg-transparent ${loopOn ? 'text-green-400 border-green-400' : 'text-zinc-500 border-zinc-600 hover:text-green-400'}`}
             title="Loop playlist">↺</button>
@@ -188,54 +210,37 @@ function MediaPlayerCard({ mp, send, productionId }: { mp: MediaPlayerSource; se
             const sel = selectedFiles.has(f)
             return (
               <button key={f} type="button" className={`block w-full text-left text-[10px] px-1 ${sel ? 'text-green-400' : 'text-zinc-500 hover:text-zinc-300'}`}
-                onClick={() => {
-                  const next = new Set(selectedFiles)
-                  if (sel) next.delete(f); else next.add(f)
-                  setSelectedFiles(next)
-                }}>🎬 {f}</button>
+                onClick={() => { const next = new Set(selectedFiles); sel ? next.delete(f) : next.add(f); setSelectedFiles(next) }}>🎬 {f}</button>
             )
           })}
           {selectedFiles.size > 0 && (
             <button type="button" className="mt-2 w-full px-2 py-1 rounded text-[10px] font-semibold bg-green-600 text-white border border-green-600 hover:bg-green-700"
               onClick={() => {
-                const newList = Array.from(selectedFiles)
-                setPlaylist(mp.id, newList)
-                setSelectedFiles(new Set())
-                setShowBrowser(false)
-                playlistDirty.current = true
+                const newList = Array.from(selectedFiles); setPlaylist(mp.id, newList); setSelectedFiles(new Set()); setShowBrowser(false); playlistDirty.current = true
                 request(`/api/v1/sources/${mp.id}`, { method: 'PATCH', body: JSON.stringify({ playlist: newList }) }).catch(() => {})
-                // Sync playlist to Strom player
                 send(M.setPlaylist(mp.id, newList))
               }}>Add {selectedFiles.size} clips to playlist</button>
           )}
         </div>
       )}
 
-      {/* Playlist with progress bar overlay on active clip */}
+      {/* Playlist */}
       {playerPlaylist.length > 0 && (
         <div className="flex flex-col gap-1">
           {playerPlaylist.map((f, i) => {
             const isActive = i === playerState.currentFileIndex
             const itemMarks = allMarks[i] ?? null
-            const pct = isActive && playerState.durationMs > 0
-              ? Math.min(100, (playerState.positionMs / playerState.durationMs) * 100)
-              : 0
-            // Mark region positions as percentages
+            const pct = isActive && playerState.durationMs > 0 ? Math.min(100, (playerState.positionMs / playerState.durationMs) * 100) : 0
             const dur = playerState.durationMs || 1
             const markInPct = itemMarks?.markIn != null ? (itemMarks.markIn * 1000 / dur) * 100 : null
             const markOutPct = itemMarks?.markOut != null ? (itemMarks.markOut * 1000 / dur) * 100 : null
             return (
               <div key={f} className="relative cursor-pointer" onClick={() => send(M.goto(mp.id, i))}>
-                {/* Progress bar bg + fill */}
                 <div className="absolute inset-0 rounded border border-zinc-600 overflow-hidden">
-                  {isActive && pct > 0 && (
-                    <div className="absolute inset-y-0 left-0 bg-orange-500/30" style={{ width: `${pct}%` }} />
-                  )}
-                  {/* Mark region band */}
+                  {isActive && pct > 0 && <div className="absolute inset-y-0 left-0 bg-orange-500/30" style={{ width: `${pct}%` }} />}
                   {isActive && markInPct != null && markOutPct != null && markOutPct > markInPct && (
                     <div className="absolute inset-y-0 bg-green-500/15 border-l border-r border-green-500/40" style={{ left: `${markInPct}%`, width: `${markOutPct - markInPct}%` }} />
                   )}
-                  {/* Mark edge indicators for non-active items */}
                   {!isActive && markInPct != null && markOutPct != null && (
                     <>
                       <div className="absolute inset-y-0 w-0.5 bg-green-500/50" style={{ left: `${markInPct}%` }} />
@@ -243,10 +248,8 @@ function MediaPlayerCard({ mp, send, productionId }: { mp: MediaPlayerSource; se
                     </>
                   )}
                 </div>
-                {/* Text overlay */}
                 <div className={`relative z-10 px-1.5 py-0.5 text-[10px] truncate ${isActive ? 'text-white font-semibold' : 'text-zinc-400'}`}>
-                  <span className="text-zinc-600 mr-1">{i + 1}.</span>
-                  {f}
+                  <span className="text-zinc-600 mr-1">{i + 1}.</span>{f}
                   {itemMarks?.markIn != null && itemMarks?.markOut != null && (
                     <span className="ml-1 text-[9px] text-green-500/70">{fmtTime(itemMarks.markIn * 1000)}–{fmtTime(itemMarks.markOut * 1000)}</span>
                   )}
@@ -260,13 +263,12 @@ function MediaPlayerCard({ mp, send, productionId }: { mp: MediaPlayerSource; se
   )
 }
 
-export function MediaPlayerModule({ send, productionId }: { send: SendFn; productionId: string | null }) {
+export function MediaPlayerPopup({ send, productionId }: { send: SendFn; productionId: string | null }) {
   const [mediaPlayers, setMediaPlayers] = useState<MediaPlayerSource[]>([])
 
   useEffect(() => {
     if (!productionId) { setMediaPlayers([]); return }
     let cancelled = false
-
     void (async () => {
       try {
         const [production, allSources] = await Promise.all([
@@ -277,31 +279,28 @@ export function MediaPlayerModule({ send, productionId }: { send: SendFn; produc
         const list = (production.sources ?? [])
           .map((a) => allSources.find((s) => s.id === a.sourceId))
           .filter((s): s is RawSource => !!s && s.streamType === 'mediaplayer')
-          .map((s) => ({ id: s.id, name: s.name, playlist: s.playlist }))
+          .map((s) => ({ id: s.id, name: s.name, playlist: s.playlist, address: s.address }))
         setMediaPlayers(list)
-      } catch {
-        // production not found / server unreachable — leave the module empty
-      }
+      } catch {}
     })()
-
     return () => { cancelled = true }
   }, [productionId])
 
   return (
-    <div className="flex flex-col h-full min-w-0">
-      <div className="flex items-center gap-1.5 text-zinc-500 shrink-0 px-1 py-0.5">
+    <div className="flex flex-col h-screen bg-[#0d1117] text-white">
+      <div className="flex items-center gap-2 text-zinc-500 shrink-0 px-3 py-2 border-b border-zinc-800">
         <span className="text-[10px] font-semibold uppercase tracking-widest">Media Player</span>
         <span className="text-[9px] text-zinc-600">{mediaPlayers.length}</span>
       </div>
-      <div className="overflow-y-auto flex-1 min-h-0 p-1">
+      <div className="overflow-y-auto flex-1 min-h-0 p-3">
         {mediaPlayers.length === 0 ? (
-          <div className="flex items-center justify-center min-h-[120px] px-4">
-            <p className="text-[9px] text-zinc-700 text-center uppercase tracking-widest">NO MEDIA PLAYERS</p>
+          <div className="flex items-center justify-center min-h-[200px]">
+            <p className="text-xs text-zinc-700 uppercase tracking-widest">NO MEDIA PLAYERS</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-2 auto-rows-min">
+          <div className="flex flex-col gap-3 max-w-[380px] mx-auto">
             {mediaPlayers.map((mp) => (
-              <MediaPlayerCard key={mp.id} mp={mp} send={send} productionId={productionId} />
+              <MediaPlayerPopupCard key={mp.id} mp={mp} send={send} productionId={productionId} />
             ))}
           </div>
         )}
