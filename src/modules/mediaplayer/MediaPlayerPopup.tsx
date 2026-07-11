@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import type { SendFn } from '@/studio/types'
 import { request } from '@/shared/api'
 import { useMediaPlayerStore, DEFAULT_PLAYER_STATE, type PlayerState } from './mediaplayer.store'
 import { mediaplayerMessages as M } from './mediaplayer.messages'
 import { useTallyLight } from '@/hooks/useTallyLight'
+import { WhepClient } from '@/lib/webrtc'
 
 interface RawProduction { sources?: Array<{ sourceId: string; mixerInput: string }> }
 interface RawSource { id: string; name: string; streamType?: string; playlist?: string[]; address?: string }
@@ -19,7 +20,7 @@ function fmtTime(ms: number): string {
   return `${m}:${sec.toString().padStart(2, '0')}`
 }
 
-function MediaPlayerPopupCard({ mp, send, productionId }: { mp: MediaPlayerSource; send: SendFn; productionId: string | null }) {
+function MediaPlayerPopupCard({ mp, send, productionId, pgmStream }: { mp: MediaPlayerSource; send: SendFn; productionId: string | null; pgmStream: MediaStream | null }) {
   const playerPlaylist = useMediaPlayerStore((s) => s.playlists[mp.id] ?? EMPTY_PLAYLIST)
   const playerState = useMediaPlayerStore((s) => s.playerStates[mp.id] ?? DEFAULT_PLAYER_STATE)
   const loopOn = useMediaPlayerStore((s) => s.loopOn[mp.id] ?? false)
@@ -38,21 +39,18 @@ function MediaPlayerPopupCard({ mp, send, productionId }: { mp: MediaPlayerSourc
   const playlistDirty = useRef(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const markOutSent = useRef(false)
-  const videoRef = useRef<HTMLVideoElement>(null)
-
-  // WHEP preview: show PGM stream since media player feeds into vision mixer
-  const [whepUrl, setWhepUrl] = useState<string | null>(null)
-  useEffect(() => {
-    if (!productionId) return
-    request<{ pgmWhepEndpoint?: string }>(`/api/v1/productions/${productionId}`)
-      .then(d => {
-        const raw = d.pgmWhepEndpoint || null
-        setWhepUrl(raw ? raw.replace('localhost', window.location.hostname) : null)
-      }).catch(() => {})
-  }, [productionId])
+  const previewVideoRef = useRef<HTMLVideoElement>(null)
 
   useEffect(() => { initPlaylist(mp.id, mp.playlist ?? []) }, [mp.id, mp.playlist, initPlaylist])
   useEffect(() => { setLoop(mp.id, playerState.loopPlaylist) }, [mp.id, playerState.loopPlaylist, setLoop])
+
+  // Bind PGM stream to preview video
+  useEffect(() => {
+    const video = previewVideoRef.current
+    if (video && pgmStream && video.srcObject !== pgmStream) {
+      video.srcObject = pgmStream
+    }
+  }, [pgmStream])
 
   const loadBrowser = (p: string) => {
     request<{ dirs: string[]; files: string[]; path: string; parent: string | null }>(`/api/v1/recorder/dirs?path=${encodeURIComponent(p)}&files=1`)
@@ -110,20 +108,30 @@ function MediaPlayerPopupCard({ mp, send, productionId }: { mp: MediaPlayerSourc
 
   const tallyRing = tally === 'pgm' ? 'ring-2 ring-green-500' : tally === 'pvw' ? 'ring-2 ring-amber-500' : 'ring-1 ring-zinc-700'
 
+  const handlePlay = () => {
+    if (playlistDirty.current && playerPlaylist.length > 0) {
+      send(M.setPlaylist(mp.id, playerPlaylist))
+      send(M.goto(mp.id, 0))
+      playlistDirty.current = false
+    } else {
+      const ms = marks?.markIn != null ? marks.markIn * 1000 : 0
+      send(M.seek(mp.id, ms))
+    }
+    send(M.control(mp.id, 'play'))
+  }
+
   return (
     <div className="bg-[#0b0f14] border border-zinc-800 rounded p-2 text-[11px]">
-      {/* WHEP video window with tally ring */}
+      {/* PGM video window with tally ring */}
       <div className={`relative bg-black rounded overflow-hidden mb-2 ${tallyRing}`}>
-        <video ref={videoRef} className="w-full aspect-video object-contain bg-black"
-          src={whepUrl || undefined}
-          autoPlay playsInline muted />
+        <video ref={previewVideoRef} className="w-full aspect-video object-contain bg-black" autoPlay playsInline muted />
         {tally !== 'off' && (
           <div className={`absolute top-1 left-1 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase ${tally === 'pgm' ? 'bg-green-600 text-white' : 'bg-amber-600 text-white'}`}>
             {tally}
           </div>
         )}
-        {!whepUrl && (
-          <div className="absolute inset-0 flex items-center justify-center text-zinc-600 text-[10px]">PGM offline</div>
+        {!pgmStream && (
+          <div className="absolute inset-0 flex items-center justify-center text-zinc-600 text-[10px]">PGM connecting...</div>
         )}
       </div>
 
@@ -156,11 +164,7 @@ function MediaPlayerPopupCard({ mp, send, productionId }: { mp: MediaPlayerSourc
         <div className="flex gap-1">
           <button type="button"
             className={`px-2 py-1 rounded text-[10px] font-semibold text-green-400 border bg-transparent hover:bg-green-950 ${playerState.state === 'playing' ? 'border-green-400' : 'border-zinc-700'}`}
-            onClick={() => {
-              if (playlistDirty.current && playerPlaylist.length > 0) { send(M.setPlaylist(mp.id, playerPlaylist)); send(M.goto(mp.id, 0)); playlistDirty.current = false }
-              else { const ms = marks?.markIn != null ? marks.markIn * 1000 : 0; send(M.seek(mp.id, ms)) }
-              send(M.control(mp.id, 'play'))
-            }}>▶</button>
+            onClick={handlePlay}>▶</button>
           <button type="button"
             className={`px-2 py-1 rounded text-[10px] font-semibold text-amber-400 border bg-transparent hover:bg-amber-950 ${playerState.state === 'paused' ? 'border-amber-400' : 'border-zinc-700'}`}
             onClick={() => { playerState.state === 'paused' ? send(M.control(mp.id, 'play')) : send(M.control(mp.id, 'pause')) }}>⏸</button>
@@ -241,12 +245,6 @@ function MediaPlayerPopupCard({ mp, send, productionId }: { mp: MediaPlayerSourc
                   {isActive && markInPct != null && markOutPct != null && markOutPct > markInPct && (
                     <div className="absolute inset-y-0 bg-green-500/15 border-l border-r border-green-500/40" style={{ left: `${markInPct}%`, width: `${markOutPct - markInPct}%` }} />
                   )}
-                  {!isActive && markInPct != null && markOutPct != null && (
-                    <>
-                      <div className="absolute inset-y-0 w-0.5 bg-green-500/50" style={{ left: `${markInPct}%` }} />
-                      <div className="absolute inset-y-0 w-0.5 bg-red-500/50" style={{ left: `${markOutPct}%` }} />
-                    </>
-                  )}
                 </div>
                 <div className={`relative z-10 px-1.5 py-0.5 text-[10px] truncate ${isActive ? 'text-white font-semibold' : 'text-zinc-400'}`}>
                   <span className="text-zinc-600 mr-1">{i + 1}.</span>{f}
@@ -265,7 +263,35 @@ function MediaPlayerPopupCard({ mp, send, productionId }: { mp: MediaPlayerSourc
 
 export function MediaPlayerPopup({ send, productionId }: { send: SendFn; productionId: string | null }) {
   const [mediaPlayers, setMediaPlayers] = useState<MediaPlayerSource[]>([])
+  const [pgmStream, setPgmStream] = useState<MediaStream | null>(null)
+  const whepRef = useRef<WhepClient | null>(null)
 
+  // WHEP connection for PGM preview
+  useEffect(() => {
+    if (!productionId) return
+    let cancelled = false
+    void (async () => {
+      try {
+        const prod = await request<{ pgmWhepEndpoint?: string }>(`/api/v1/productions/${productionId}`)
+        if (cancelled || !prod.pgmWhepEndpoint) return
+        const url = prod.pgmWhepEndpoint.replace('localhost', window.location.hostname)
+        if (whepRef.current) { whepRef.current.disconnect(); whepRef.current = null }
+        const client = new WhepClient(url, {
+          onVideoTrack: (stream: MediaStream) => {
+            if (!cancelled) setPgmStream(stream)
+          },
+          onConnected: () => {},
+          onDisconnected: () => { if (!cancelled) setPgmStream(null) },
+          onError: () => {},
+        })
+        whepRef.current = client
+        client.connect()
+      } catch {}
+    })()
+    return () => { cancelled = true; whepRef.current?.disconnect(); whepRef.current = null }
+  }, [productionId])
+
+  // Fetch media player sources
   useEffect(() => {
     if (!productionId) { setMediaPlayers([]); return }
     let cancelled = false
@@ -300,7 +326,7 @@ export function MediaPlayerPopup({ send, productionId }: { send: SendFn; product
         ) : (
           <div className="flex flex-col gap-3 max-w-[380px] mx-auto">
             {mediaPlayers.map((mp) => (
-              <MediaPlayerPopupCard key={mp.id} mp={mp} send={send} productionId={productionId} />
+              <MediaPlayerPopupCard key={mp.id} mp={mp} send={send} productionId={productionId} pgmStream={pgmStream} />
             ))}
           </div>
         )}
