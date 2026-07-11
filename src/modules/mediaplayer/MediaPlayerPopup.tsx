@@ -49,6 +49,28 @@ function MediaPlayerPopupCard({ mp, send, productionId, tally }: { mp: MediaPlay
     ? `/api/v1/recorder/file?folder=${encodeURIComponent(basePath)}&file=${encodeURIComponent(currentClip)}`
     : null
 
+  // Sync video element with Strom player state
+  useEffect(() => {
+    const video = previewVideoRef.current
+    if (!video || !fileUrl) return
+    // When clip changes, load new source
+    if (video.src !== (window.location.origin + fileUrl) && !video.src.endsWith(fileUrl)) {
+      video.src = fileUrl
+    }
+    // Sync play/pause state
+    if (playerState.state === 'playing') {
+      video.play().catch(() => {})
+    } else {
+      video.pause()
+    }
+    // Sync position (only if difference > 0.5s to avoid jitter)
+    const stromPos = playerState.positionMs / 1000
+    const videoPos = video.currentTime
+    if (Math.abs(stromPos - videoPos) > 0.5) {
+      video.currentTime = stromPos
+    }
+  }, [playerState.state, playerState.positionMs, playerState.currentFileIndex, fileUrl])
+
   const loadBrowser = (p: string) => {
     request<{ dirs: string[]; files: string[]; path: string; parent: string | null }>(`/api/v1/recorder/dirs?path=${encodeURIComponent(p)}&files=1`)
       .then((d) => {
@@ -125,7 +147,7 @@ function MediaPlayerPopupCard({ mp, send, productionId, tally }: { mp: MediaPlay
     <div className="bg-[#0b0f14] border border-zinc-800 rounded p-2 text-[11px]">
       {/* PGM video window with tally ring */}
       <div className={`relative bg-black rounded overflow-hidden mb-2 ${tallyRing}`}>
-        <video ref={previewVideoRef} className="w-full aspect-video object-contain bg-black" src={fileUrl || undefined} autoPlay playsInline muted controls={false} />
+        <video ref={previewVideoRef} className="w-full aspect-video object-contain bg-black" playsInline muted />
         {tally !== 'off' && (
           <div className={`absolute top-1 left-1 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase ${tally === 'pgm' ? 'bg-red-600 text-white' : 'bg-green-600 text-white'}`}>
             {tally}
