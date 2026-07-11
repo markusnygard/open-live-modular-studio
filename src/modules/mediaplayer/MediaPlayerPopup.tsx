@@ -20,7 +20,7 @@ function fmtTime(ms: number): string {
   return `${m}:${sec.toString().padStart(2, '0')}`
 }
 
-function MediaPlayerPopupCard({ mp, send, productionId, pgmStream }: { mp: MediaPlayerSource; send: SendFn; productionId: string | null; pgmStream: MediaStream | null }) {
+function MediaPlayerPopupCard({ mp, send, productionId, whepUrl }: { mp: MediaPlayerSource; send: SendFn; productionId: string | null; whepUrl: string | null }) {
   const playerPlaylist = useMediaPlayerStore((s) => s.playlists[mp.id] ?? EMPTY_PLAYLIST)
   const playerState = useMediaPlayerStore((s) => s.playerStates[mp.id] ?? DEFAULT_PLAYER_STATE)
   const loopOn = useMediaPlayerStore((s) => s.loopOn[mp.id] ?? false)
@@ -41,16 +41,34 @@ function MediaPlayerPopupCard({ mp, send, productionId, pgmStream }: { mp: Media
   const markOutSent = useRef(false)
   const previewVideoRef = useRef<HTMLVideoElement>(null)
 
+  const [mpStream, setMpStream] = useState<MediaStream | null>(null)
+  const whepRef = useRef<WhepClient | null>(null)
+
   useEffect(() => { initPlaylist(mp.id, mp.playlist ?? []) }, [mp.id, mp.playlist, initPlaylist])
   useEffect(() => { setLoop(mp.id, playerState.loopPlaylist) }, [mp.id, playerState.loopPlaylist, setLoop])
 
-  // Bind PGM stream to preview video
+  // Per-player WHEP connection
+  useEffect(() => {
+    if (!whepUrl) return
+    const url = whepUrl.replace('localhost', window.location.hostname)
+    const client = new WhepClient(url, {
+      onVideoTrack: (stream: MediaStream) => setMpStream(stream),
+      onConnected: () => {},
+      onDisconnected: () => setMpStream(null),
+      onError: () => {},
+    })
+    whepRef.current = client
+    client.connect()
+    return () => { client.disconnect() }
+  }, [whepUrl])
+
+  // Bind stream to preview video
   useEffect(() => {
     const video = previewVideoRef.current
-    if (video && pgmStream && video.srcObject !== pgmStream) {
-      video.srcObject = pgmStream
+    if (video && mpStream && video.srcObject !== mpStream) {
+      video.srcObject = mpStream
     }
-  }, [pgmStream])
+  }, [mpStream])
 
   const loadBrowser = (p: string) => {
     request<{ dirs: string[]; files: string[]; path: string; parent: string | null }>(`/api/v1/recorder/dirs?path=${encodeURIComponent(p)}&files=1`)
@@ -130,8 +148,8 @@ function MediaPlayerPopupCard({ mp, send, productionId, pgmStream }: { mp: Media
             {tally}
           </div>
         )}
-        {!pgmStream && (
-          <div className="absolute inset-0 flex items-center justify-center text-zinc-600 text-[10px]">PGM connecting...</div>
+        {!mpStream && (
+          <div className="absolute inset-0 flex items-center justify-center text-zinc-600 text-[10px]">MP preview connecting...</div>
         )}
       </div>
 
@@ -263,32 +281,22 @@ function MediaPlayerPopupCard({ mp, send, productionId, pgmStream }: { mp: Media
 
 export function MediaPlayerPopup({ send, productionId }: { send: SendFn; productionId: string | null }) {
   const [mediaPlayers, setMediaPlayers] = useState<MediaPlayerSource[]>([])
-  const [pgmStream, setPgmStream] = useState<MediaStream | null>(null)
-  const whepRef = useRef<WhepClient | null>(null)
+  const [mpWhepUrls, setMpWhepUrls] = useState<Record<string, string>>({})
 
-  // WHEP connection for PGM preview
+  // Fetch per-media-player WHEP URLs from production
   useEffect(() => {
     if (!productionId) return
-    let cancelled = false
-    void (async () => {
-      try {
-        const prod = await request<{ pgmWhepEndpoint?: string }>(`/api/v1/productions/${productionId}`)
-        if (cancelled || !prod.pgmWhepEndpoint) return
-        const url = prod.pgmWhepEndpoint.replace('localhost', window.location.hostname)
-        if (whepRef.current) { whepRef.current.disconnect(); whepRef.current = null }
-        const client = new WhepClient(url, {
-          onVideoTrack: (stream: MediaStream) => {
-            if (!cancelled) setPgmStream(stream)
-          },
-          onConnected: () => {},
-          onDisconnected: () => { if (!cancelled) setPgmStream(null) },
-          onError: () => {},
-        })
-        whepRef.current = client
-        client.connect()
-      } catch {}
-    })()
-    return () => { cancelled = true; whepRef.current?.disconnect(); whepRef.current = null }
+    request<{ whepOutputUrls?: Array<{ outputId: string; url: string }> }>(`/api/v1/productions/${productionId}`)
+      .then(d => {
+        const map: Record<string, string> = {}
+        for (const entry of d.whepOutputUrls ?? []) {
+          if (entry.outputId.startsWith('__mpwhep__')) {
+            const sourceId = entry.outputId.replace('__mpwhep__', '')
+            map[sourceId] = entry.url
+          }
+        }
+        setMpWhepUrls(map)
+      }).catch(() => {})
   }, [productionId])
 
   // Fetch media player sources
@@ -326,7 +334,7 @@ export function MediaPlayerPopup({ send, productionId }: { send: SendFn; product
         ) : (
           <div className="flex flex-col gap-3 max-w-[380px] mx-auto">
             {mediaPlayers.map((mp) => (
-              <MediaPlayerPopupCard key={mp.id} mp={mp} send={send} productionId={productionId} pgmStream={pgmStream} />
+              <MediaPlayerPopupCard key={mp.id} mp={mp} send={send} productionId={productionId} whepUrl={mpWhepUrls[mp.id] || null} />
             ))}
           </div>
         )}
