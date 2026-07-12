@@ -38,6 +38,7 @@ function MediaPlayerPopupCard({ mp, send, productionId, tally }: { mp: MediaPlay
   const markOutSent = useRef(false)
   const previewVideoRef = useRef<HTMLVideoElement>(null)
   const [holdOn, setHoldOn] = useState(false)
+  const [scrubValue, setScrubValue] = useState<number | null>(null)  // local state during drag
 
   useEffect(() => { initPlaylist(mp.id, mp.playlist ?? []) }, [mp.id, mp.playlist, initPlaylist])
   useEffect(() => { setLoop(mp.id, playerState.loopPlaylist) }, [mp.id, playerState.loopPlaylist, setLoop])
@@ -63,11 +64,13 @@ function MediaPlayerPopupCard({ mp, send, productionId, tally }: { mp: MediaPlay
     } else {
       video.pause()
     }
-    // Sync position (only if difference > 0.5s to avoid jitter)
-    const stromPos = playerState.positionMs / 1000
-    const videoPos = video.currentTime
-    if (Math.abs(stromPos - videoPos) > 0.5) {
-      video.currentTime = stromPos
+    // Sync position (only if difference > 0.5s and user isn't scrubbing)
+    if (scrubValue === null) {
+      const stromPos = playerState.positionMs / 1000
+      const videoPos = video.currentTime
+      if (Math.abs(stromPos - videoPos) > 0.5) {
+        video.currentTime = stromPos
+      }
     }
   }, [playerState.state, playerState.positionMs, playerState.currentFileIndex, fileUrl])
 
@@ -161,13 +164,15 @@ function MediaPlayerPopupCard({ mp, send, productionId, tally }: { mp: MediaPlay
       {/* Scrubber — always visible when clip loaded, pauses during drag */}
       {playerState.durationMs > 0 && (
         <div className="mb-2">
-          <input type="range" min={0} max={durationSec * 1000} value={displayPosition}
+          <input type="range" min={0} max={durationSec * 1000} value={scrubValue ?? displayPosition}
             onPointerDown={() => {
-              // Pause playback during scrub
+              setScrubValue(displayPosition)
               if (playerState.state === 'playing') send(M.control(mp.id, 'pause'))
             }}
+            onPointerUp={() => { setScrubValue(null) }}
             onChange={(e) => {
               const pos = Number(e.target.value)
+              setScrubValue(pos)
               const realPos = marks?.markIn != null ? pos + marks.markIn * 1000 : pos
               send(M.seek(mp.id, realPos))
             }}
