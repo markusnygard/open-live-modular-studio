@@ -137,7 +137,7 @@ function MediaPlayerPopupCard({ mp, send, productionId, tally }: { mp: MediaPlay
       playlistDirty.current = false
     } else if (marks?.markIn != null) {
       send(M.goto(mp.id, playerState.currentFileIndex))
-      setTimeout(() => send(M.control(mp.id, 'play')), 600)
+      setTimeout(() => send(M.control(mp.id, 'play')), 300)
       return
     } else {
       send(M.control(mp.id, 'play'))

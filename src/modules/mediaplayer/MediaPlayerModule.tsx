@@ -139,9 +139,9 @@ function MediaPlayerCard({ mp, send, productionId }: { mp: MediaPlayerSource; se
                 send(M.goto(mp.id, 0))
                 playlistDirty.current = false
               } else if (marks?.markIn != null) {
-                // GOTO loads clip, backend seeks to markIn, then we PLAY
+                // GOTO loads clip, backend immediately seeks to markIn, then we PLAY
                 send(M.goto(mp.id, playerState.currentFileIndex))
-                setTimeout(() => send(M.control(mp.id, 'play')), 600)
+                setTimeout(() => send(M.control(mp.id, 'play')), 300)
               } else {
                 send(M.control(mp.id, 'play'))
               }
