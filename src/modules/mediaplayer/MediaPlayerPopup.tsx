@@ -38,7 +38,9 @@ function MediaPlayerPopupCard({ mp, send, productionId, tally }: { mp: MediaPlay
   const markOutSent = useRef(false)
   const previewVideoRef = useRef<HTMLVideoElement>(null)
   const [holdOn, setHoldOn] = useState(false)
-  const [scrubValue, setScrubValue] = useState<number | null>(null)  // local state during drag
+  const [scrubValue, setScrubValue] = useState<number | null>(null)
+  const pendingPlayRef = useRef(false)
+  const markInSoughtRef = useRef(false)
 
   useEffect(() => { initPlaylist(mp.id, mp.playlist ?? []) }, [mp.id, mp.playlist, initPlaylist])
   useEffect(() => { setLoop(mp.id, playerState.loopPlaylist) }, [mp.id, playerState.loopPlaylist, setLoop])
@@ -105,6 +107,20 @@ function MediaPlayerPopupCard({ mp, send, productionId, tally }: { mp: MediaPlay
             allClipMarks: data.allClipMarks ?? [],
           }
           setPlayerState(mp.id, next)
+
+          // Poll-based state machine for pending PLAY with markIn
+          if (pendingPlayRef.current) {
+            const mk = data.clipMarks
+            if (mk?.markIn != null && !markInSoughtRef.current) {
+              send(M.seek(mp.id, mk.markIn * 1000))
+              markInSoughtRef.current = true
+            } else if (data.duration_ns > 0) {
+              send(M.control(mp.id, 'play'))
+              pendingPlayRef.current = false
+              markInSoughtRef.current = false
+            }
+          }
+
           const mk = data.clipMarks
           if (mk?.markOut != null && data.state === 'playing') {
             const markOutMs = mk.markOut * 1000
@@ -136,14 +152,13 @@ function MediaPlayerPopupCard({ mp, send, productionId, tally }: { mp: MediaPlay
       send(M.goto(mp.id, 0))
       playlistDirty.current = false
     } else if (marks?.markIn != null) {
+      pendingPlayRef.current = true
+      markInSoughtRef.current = false
       send(M.goto(mp.id, playerState.currentFileIndex))
-      setTimeout(() => send(M.control(mp.id, 'play')), 300)
       return
     } else {
       send(M.control(mp.id, 'play'))
-      return
     }
-    send(M.control(mp.id, 'play'))
   }
 
   return (
