@@ -139,9 +139,9 @@ function MediaPlayerCard({ mp, send, productionId }: { mp: MediaPlayerSource; se
                 send(M.goto(mp.id, 0))
                 playlistDirty.current = false
               } else if (marks?.markIn != null) {
-                // Use GOTO which seeks to markIn in backend, then PLAY
-                send(M.goto(mp.id, playerState.currentFileIndex))
-                setTimeout(() => send(M.control(mp.id, 'play')), 400)
+                // Seek to markIn while stopped, then play
+                send(M.seek(mp.id, marks.markIn * 1000))
+                setTimeout(() => send(M.control(mp.id, 'play')), 250)
               } else {
                 send(M.control(mp.id, 'play'))
               }
