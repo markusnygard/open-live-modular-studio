@@ -133,22 +133,18 @@ function MediaPlayerCard({ mp, send, productionId }: { mp: MediaPlayerSource; se
         <div className="flex gap-1">
           <button type="button"
             className={`px-2 py-1 rounded text-[10px] font-semibold text-green-400 border bg-transparent hover:bg-green-950 ${playerState.state === 'playing' ? 'border-green-400' : 'border-zinc-700'}`}
-            onClick={() => {
+              onClick={() => {
               if (playlistDirty.current && playerPlaylist.length > 0) {
                 send(M.setPlaylist(mp.id, playerPlaylist))
                 send(M.goto(mp.id, 0))
                 playlistDirty.current = false
+              } else if (marks?.markIn != null) {
+                // Use GOTO which seeks to markIn in backend, then PLAY
+                send(M.goto(mp.id, playerState.currentFileIndex))
+                setTimeout(() => send(M.control(mp.id, 'play')), 400)
               } else {
-                // Send play first, then seek to markIn after a short delay
-                // so the player pipeline is ready for the seek command.
                 send(M.control(mp.id, 'play'))
-                setTimeout(() => {
-                  const ms = marks?.markIn != null ? marks.markIn * 1000 : 0
-                  if (ms > 0) send(M.seek(mp.id, ms))
-                }, 200)
-                return
               }
-              send(M.control(mp.id, 'play'))
             }}>▶</button>
           <button type="button"
             className={`px-2 py-1 rounded text-[10px] font-semibold text-amber-400 border bg-transparent hover:bg-amber-950 ${playerState.state === 'paused' ? 'border-amber-400' : 'border-zinc-700'}`}
