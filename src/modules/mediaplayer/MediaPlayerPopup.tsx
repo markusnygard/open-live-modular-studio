@@ -39,8 +39,6 @@ function MediaPlayerPopupCard({ mp, send, productionId, tally }: { mp: MediaPlay
   const previewVideoRef = useRef<HTMLVideoElement>(null)
   const [holdOn, setHoldOn] = useState(false)
   const [scrubValue, setScrubValue] = useState<number | null>(null)
-  const pendingPlayRef = useRef(false)
-  const markInSoughtRef = useRef(false)
 
   useEffect(() => { initPlaylist(mp.id, mp.playlist ?? []) }, [mp.id, mp.playlist, initPlaylist])
   useEffect(() => { setLoop(mp.id, playerState.loopPlaylist) }, [mp.id, playerState.loopPlaylist, setLoop])
@@ -108,19 +106,6 @@ function MediaPlayerPopupCard({ mp, send, productionId, tally }: { mp: MediaPlay
           }
           setPlayerState(mp.id, next)
 
-          // Poll-based state machine for pending PLAY with markIn
-          if (pendingPlayRef.current) {
-            const mk = data.clipMarks
-            if (mk?.markIn != null && !markInSoughtRef.current) {
-              send(M.seek(mp.id, mk.markIn * 1000))
-              markInSoughtRef.current = true
-            } else if (data.duration_ns > 0) {
-              send(M.control(mp.id, 'play'))
-              pendingPlayRef.current = false
-              markInSoughtRef.current = false
-            }
-          }
-
           const mk = data.clipMarks
           if (mk?.markOut != null && data.state === 'playing') {
             const markOutMs = mk.markOut * 1000
@@ -152,9 +137,8 @@ function MediaPlayerPopupCard({ mp, send, productionId, tally }: { mp: MediaPlay
       send(M.goto(mp.id, 0))
       playlistDirty.current = false
     } else if (marks?.markIn != null) {
-      pendingPlayRef.current = true
-      markInSoughtRef.current = false
       send(M.goto(mp.id, playerState.currentFileIndex))
+      setTimeout(() => send(M.control(mp.id, 'play')), 400)
       return
     } else {
       send(M.control(mp.id, 'play'))
@@ -166,9 +150,20 @@ function MediaPlayerPopupCard({ mp, send, productionId, tally }: { mp: MediaPlay
       {/* PGM video window with tally ring */}
       <div className={`relative bg-black rounded overflow-hidden mb-2 ${tallyRing}`}>
         <video ref={previewVideoRef} className="w-full aspect-video object-contain bg-black" playsInline muted />
-        {tally !== 'off' && (
-          <div className={`absolute top-1 left-1 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase ${tally === 'pgm' ? 'bg-red-600 text-white' : 'bg-green-600 text-white'}`}>
-            {tally}
+        {/* Timecode overlay — always visible when clip loaded */}
+        {currentClip && (
+          <div className="absolute top-0 left-0 right-0 bg-black/65 px-2 py-0.5 text-[10px] text-white tabular-nums text-center z-10 font-mono">
+            {fmtTime(displayPosition)} / {fmtTime(displayDuration)}
+            {(marks?.markIn != null || marks?.markOut != null) && (
+              <span className="ml-2 text-[9px] text-green-400">
+                [{marks?.markIn != null ? fmtTime(marks.markIn * 1000) : '0:00'}–{marks?.markOut != null ? fmtTime(marks.markOut * 1000) : fmtTime(playerState.durationMs)}]
+              </span>
+            )}
+            {tally !== 'off' && (
+              <span className={`ml-2 px-1 rounded text-[7px] font-bold uppercase ${tally === 'pgm' ? 'bg-red-600 text-white' : 'bg-green-600 text-white'}`}>
+                {tally}
+              </span>
+            )}
           </div>
         )}
         {!currentClip && (

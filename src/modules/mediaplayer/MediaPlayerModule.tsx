@@ -48,8 +48,6 @@ function MediaPlayerCard({ mp, send, productionId }: { mp: MediaPlayerSource; se
   const playlistDirty = useRef(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const markOutSent = useRef(false)
-  const pendingPlayRef = useRef(false)
-  const markInSoughtRef = useRef(false)
 
   // Seed the playlist from the source record on first mount.
   useEffect(() => { initPlaylist(mp.id, mp.playlist ?? []) }, [mp.id, mp.playlist, initPlaylist])
@@ -88,21 +86,6 @@ function MediaPlayerCard({ mp, send, productionId }: { mp: MediaPlayerSource; se
             allClipMarks: data.allClipMarks ?? [],
           }
           setPlayerState(mp.id, next)
-
-          // Poll-based state machine for pending PLAY with markIn
-          if (pendingPlayRef.current) {
-            const mk = data.clipMarks
-            if (mk?.markIn != null && !markInSoughtRef.current) {
-              // Pipeline is loaded, seek to markIn
-              send(M.seek(mp.id, mk.markIn * 1000))
-              markInSoughtRef.current = true
-            } else if (data.duration_ns > 0) {
-              // Seek complete (or no markIn), start playing
-              send(M.control(mp.id, 'play'))
-              pendingPlayRef.current = false
-              markInSoughtRef.current = false
-            }
-          }
 
           // Auto-stop at markOut
           const mk = data.clipMarks
@@ -156,10 +139,9 @@ function MediaPlayerCard({ mp, send, productionId }: { mp: MediaPlayerSource; se
                 send(M.goto(mp.id, 0))
                 playlistDirty.current = false
               } else if (marks?.markIn != null) {
-                // Poll loop sequences: GOTO → (pipeline loads) → SEEK(markIn) → PLAY
-                pendingPlayRef.current = true
-                markInSoughtRef.current = false
+                // Strom bridge applies start_position_ns during init — no more race
                 send(M.goto(mp.id, playerState.currentFileIndex))
+                setTimeout(() => send(M.control(mp.id, 'play')), 400)
               } else {
                 send(M.control(mp.id, 'play'))
               }
