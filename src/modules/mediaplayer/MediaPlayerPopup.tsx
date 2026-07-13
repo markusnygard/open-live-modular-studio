@@ -151,7 +151,7 @@ function MediaPlayerPopupCard({ mp, send, productionId, tally }: { mp: MediaPlay
     <div className="bg-[#0b0f14] border border-zinc-800 rounded p-2 text-[11px]">
       {/* PGM video window with tally ring */}
       <div className={`relative bg-black rounded overflow-hidden mb-2 ${tallyRing}`}>
-        <video ref={previewVideoRef} className="w-full aspect-video object-contain bg-black" playsInline muted />
+        <video ref={previewVideoRef} className="w-full aspect-video object-contain bg-black" playsInline muted src={fileUrl || undefined} />
         {/* Timecode overlay — always visible when clip loaded */}
         {currentClip && (
           <div className="absolute top-0 left-0 right-0 bg-black/65 px-2 py-0.5 text-[10px] text-white tabular-nums text-center z-10 font-mono">
