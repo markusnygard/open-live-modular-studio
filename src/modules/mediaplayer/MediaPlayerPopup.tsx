@@ -227,11 +227,13 @@ function MediaPlayerPopupCard({ mp, send, productionId, tally }: { mp: MediaPlay
           <button type="button"
             className={`px-1.5 py-1 rounded text-[9px] font-semibold border ${marks?.markIn != null ? 'text-green-400 border-green-600 bg-green-950/50' : 'text-zinc-500 border-zinc-700 bg-transparent hover:text-green-400'}`}
             onClick={() => { const nowSec = playerState.positionMs / 1000; send(M.setMarks(mp.id, playerState.currentFileIndex, nowSec, marks?.markOut)) }}
-            title="Set Mark IN at current position">IN</button>
+            onDoubleClick={() => { if (marks?.markIn != null) send(M.seek(mp.id, marks.markIn * 1000)) }}
+            title="Set Mark IN (click) — Seek to IN (double-click)">IN</button>
           <button type="button"
             className={`px-1.5 py-1 rounded text-[9px] font-semibold border ${marks?.markOut != null ? 'text-red-400 border-red-600 bg-red-950/50' : 'text-zinc-500 border-zinc-700 bg-transparent hover:text-red-400'}`}
             onClick={() => { const nowSec = playerState.positionMs / 1000; send(M.setMarks(mp.id, playerState.currentFileIndex, marks?.markIn, nowSec)) }}
-            title="Set Mark OUT at current position">OUT</button>
+            onDoubleClick={() => { if (marks?.markOut != null) send(M.seek(mp.id, marks.markOut * 1000)) }}
+            title="Set Mark OUT (click) — Seek to OUT (double-click)">OUT</button>
           {(marks?.markIn != null || marks?.markOut != null) && (
             <button type="button" className="px-1.5 py-1 rounded text-[9px] text-zinc-600 border border-zinc-700 bg-transparent hover:text-white"
               onClick={() => send(M.setMarks(mp.id, playerState.currentFileIndex, undefined, undefined))} title="Clear marks">✕</button>
