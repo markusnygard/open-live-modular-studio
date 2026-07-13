@@ -39,6 +39,8 @@ function MediaPlayerPopupCard({ mp, send, productionId, tally }: { mp: MediaPlay
   const previewVideoRef = useRef<HTMLVideoElement>(null)
   const [holdOn, setHoldOn] = useState(false)
   const [scrubValue, setScrubValue] = useState<number | null>(null)
+  const clickTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const lastScrubPos = useRef<number | null>(null)  // position user scrolled to
 
   useEffect(() => { initPlaylist(mp.id, mp.playlist ?? []) }, [mp.id, mp.playlist, initPlaylist])
   useEffect(() => { setLoop(mp.id, playerState.loopPlaylist) }, [mp.id, playerState.loopPlaylist, setLoop])
@@ -138,6 +140,13 @@ function MediaPlayerPopupCard({ mp, send, productionId, tally }: { mp: MediaPlay
       send(M.setPlaylist(mp.id, playerPlaylist))
       send(M.goto(mp.id, 0))
       playlistDirty.current = false
+    } else if (lastScrubPos.current != null) {
+      // User scrubbed — play from that position
+      const pos = lastScrubPos.current
+      lastScrubPos.current = null
+      send(M.seek(mp.id, pos))
+      setTimeout(() => send(M.control(mp.id, 'play')), 200)
+      return
     } else if (marks?.markIn != null) {
       send(M.goto(mp.id, playerState.currentFileIndex))
       setTimeout(() => send(M.control(mp.id, 'play')), 400)
@@ -186,6 +195,7 @@ function MediaPlayerPopupCard({ mp, send, productionId, tally }: { mp: MediaPlay
               const pos = Number(e.target.value)
               setScrubValue(pos)
               const realPos = marks?.markIn != null ? pos + marks.markIn * 1000 : pos
+              lastScrubPos.current = realPos
               send(M.seek(mp.id, realPos))
             }}
             className="w-full h-1.5 appearance-none bg-zinc-700 rounded-full cursor-pointer
@@ -226,13 +236,41 @@ function MediaPlayerPopupCard({ mp, send, productionId, tally }: { mp: MediaPlay
         <div className="flex gap-1 ml-auto">
           <button type="button"
             className={`px-1.5 py-1 rounded text-[9px] font-semibold border ${marks?.markIn != null ? 'text-green-400 border-green-600 bg-green-950/50' : 'text-zinc-500 border-zinc-700 bg-transparent hover:text-green-400'}`}
-            onClick={() => { const nowSec = playerState.positionMs / 1000; send(M.setMarks(mp.id, playerState.currentFileIndex, nowSec, marks?.markOut)) }}
-            onDoubleClick={() => { if (marks?.markIn != null) send(M.seek(mp.id, marks.markIn * 1000)) }}
+            onClick={() => {
+              if (clickTimer.current) { clearTimeout(clickTimer.current); clickTimer.current = null; return } // ignore — part of dblclick
+              clickTimer.current = setTimeout(() => {
+                clickTimer.current = null
+                const nowSec = playerState.positionMs / 1000
+                send(M.setMarks(mp.id, playerState.currentFileIndex, nowSec, marks?.markOut))
+              }, 250)
+            }}
+            onDoubleClick={(e) => {
+              e.preventDefault()
+              if (clickTimer.current) { clearTimeout(clickTimer.current); clickTimer.current = null }
+              if (marks?.markIn != null) {
+                send(M.seek(mp.id, marks.markIn * 1000))
+                lastScrubPos.current = marks.markIn * 1000
+              }
+            }}
             title="Set Mark IN (click) — Seek to IN (double-click)">IN</button>
           <button type="button"
             className={`px-1.5 py-1 rounded text-[9px] font-semibold border ${marks?.markOut != null ? 'text-red-400 border-red-600 bg-red-950/50' : 'text-zinc-500 border-zinc-700 bg-transparent hover:text-red-400'}`}
-            onClick={() => { const nowSec = playerState.positionMs / 1000; send(M.setMarks(mp.id, playerState.currentFileIndex, marks?.markIn, nowSec)) }}
-            onDoubleClick={() => { if (marks?.markOut != null) send(M.seek(mp.id, marks.markOut * 1000)) }}
+            onClick={() => {
+              if (clickTimer.current) { clearTimeout(clickTimer.current); clickTimer.current = null; return }
+              clickTimer.current = setTimeout(() => {
+                clickTimer.current = null
+                const nowSec = playerState.positionMs / 1000
+                send(M.setMarks(mp.id, playerState.currentFileIndex, marks?.markIn, nowSec))
+              }, 250)
+            }}
+            onDoubleClick={(e) => {
+              e.preventDefault()
+              if (clickTimer.current) { clearTimeout(clickTimer.current); clickTimer.current = null }
+              if (marks?.markOut != null) {
+                send(M.seek(mp.id, marks.markOut * 1000))
+                lastScrubPos.current = marks.markOut * 1000
+              }
+            }}
             title="Set Mark OUT (click) — Seek to OUT (double-click)">OUT</button>
           {(marks?.markIn != null || marks?.markOut != null) && (
             <button type="button" className="px-1.5 py-1 rounded text-[9px] text-zinc-600 border border-zinc-700 bg-transparent hover:text-white"
