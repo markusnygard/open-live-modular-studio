@@ -196,6 +196,9 @@ function MediaPlayerPopupCard({ mp, send, productionId, tally }: { mp: MediaPlay
               setScrubValue(pos)
               const realPos = marks?.markIn != null ? pos + marks.markIn * 1000 : pos
               lastScrubPos.current = realPos
+              // Seek video instantly for visual feedback
+              const video = previewVideoRef.current
+              if (video) { video.currentTime = realPos / 1000; video.pause() }
               send(M.seek(mp.id, realPos))
             }}
             className="w-full h-1.5 appearance-none bg-zinc-700 rounded-full cursor-pointer
@@ -250,6 +253,8 @@ function MediaPlayerPopupCard({ mp, send, productionId, tally }: { mp: MediaPlay
               if (marks?.markIn != null) {
                 send(M.seek(mp.id, marks.markIn * 1000))
                 lastScrubPos.current = marks.markIn * 1000
+                const video = previewVideoRef.current
+                if (video) { video.currentTime = marks.markIn; video.pause() }
               }
             }}
             title="Set Mark IN (click) — Seek to IN (double-click)">IN</button>
@@ -269,6 +274,8 @@ function MediaPlayerPopupCard({ mp, send, productionId, tally }: { mp: MediaPlay
               if (marks?.markOut != null) {
                 send(M.seek(mp.id, marks.markOut * 1000))
                 lastScrubPos.current = marks.markOut * 1000
+                const video = previewVideoRef.current
+                if (video) { video.currentTime = marks.markOut; video.pause() }
               }
             }}
             title="Set Mark OUT (click) — Seek to OUT (double-click)">OUT</button>
