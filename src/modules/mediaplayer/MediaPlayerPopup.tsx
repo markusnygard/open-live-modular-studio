@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import type { SendFn } from '@/studio/types'
 import { request } from '@/shared/api'
 import { useMediaPlayerStore, DEFAULT_PLAYER_STATE, type PlayerState } from './mediaplayer.store'
@@ -123,11 +123,13 @@ function MediaPlayerPopupCard({ mp, send, productionId, tally }: { mp: MediaPlay
     return () => { if (pollRef.current) clearInterval(pollRef.current) }
   }, [productionId, mp.id, setPlayerState, send])
 
+  // Position relative to markIn (0 unless markIn is set)
   const displayPosition = marks?.markIn != null ? playerState.positionMs - marks.markIn * 1000 : playerState.positionMs
-  const displayDuration = marks?.markOut != null
-    ? (marks.markOut - (marks.markIn ?? 0)) * 1000
-    : marks?.markIn != null ? playerState.durationMs - marks.markIn * 1000 : playerState.durationMs
-  const durationSec = displayDuration / 1000
+  // Full clip duration (not truncated by marks — scrubber spans entire clip)
+  const totalDurationMs = playerState.durationMs
+  const totalDurationSec = totalDurationMs / 1000
+  // Time overlay shows full clip duration, marks are a sub-range
+  const durationLabel = playerState.durationMs
 
   const tallyRing = tally === 'pgm' ? 'ring-2 ring-red-500' : tally === 'pvw' ? 'ring-2 ring-green-500' : 'ring-1 ring-zinc-700'
 
@@ -153,7 +155,7 @@ function MediaPlayerPopupCard({ mp, send, productionId, tally }: { mp: MediaPlay
         {/* Timecode overlay — always visible when clip loaded */}
         {currentClip && (
           <div className="absolute top-0 left-0 right-0 bg-black/65 px-2 py-0.5 text-[10px] text-white tabular-nums text-center z-10 font-mono">
-            {fmtTime(displayPosition)} / {fmtTime(displayDuration)}
+            {fmtTime(displayPosition)} / {fmtTime(durationLabel)}
             {(marks?.markIn != null || marks?.markOut != null) && (
               <span className="ml-2 text-[9px] text-green-400">
                 [{marks?.markIn != null ? fmtTime(marks.markIn * 1000) : '0:00'}–{marks?.markOut != null ? fmtTime(marks.markOut * 1000) : fmtTime(playerState.durationMs)}]
@@ -174,7 +176,7 @@ function MediaPlayerPopupCard({ mp, send, productionId, tally }: { mp: MediaPlay
       {/* Scrubber — always visible when clip loaded, pauses during drag */}
       {playerState.durationMs > 0 && (
         <div className="mb-2">
-          <input type="range" min={0} max={durationSec * 1000} value={scrubValue ?? displayPosition}
+          <input type="range" min={0} max={totalDurationSec * 1000} value={scrubValue ?? displayPosition}
             onPointerDown={() => {
               setScrubValue(displayPosition)
               if (playerState.state === 'playing') send(M.control(mp.id, 'pause'))
@@ -197,7 +199,7 @@ function MediaPlayerPopupCard({ mp, send, productionId, tally }: { mp: MediaPlay
         <span className={`w-2 h-2 rounded-full shrink-0 ${playerState.state === 'playing' ? 'bg-green-500' : playerState.state === 'paused' ? 'bg-amber-500' : 'bg-zinc-500'}`} />
         <span className="font-semibold text-white text-xs truncate">{mp.name}</span>
         {playerState.state === 'playing' && (
-          <span className="text-[10px] text-zinc-500 ml-auto tabular-nums">{fmtTime(displayPosition)} / {fmtTime(displayDuration)}</span>
+          <span className="text-[10px] text-zinc-500 ml-auto tabular-nums">{fmtTime(displayPosition)} / {fmtTime(durationLabel)}</span>
         )}
       </div>
 
